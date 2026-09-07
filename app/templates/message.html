@@ -1,0 +1,1 @@
+{% extends 'base.html' %}{% block content %}<header><div><em>FIRMWARE MONITOR</em><h1>{{title}}</h1></div></header><div class="card message"><span class="{{'success' if ok else 'failure'}}">{{icon('check' if ok else 'alert')}}</span><p>{{message}}</p><a class="btn primary" href="/">Вернуться к обзору</a></div>{% endblock %}

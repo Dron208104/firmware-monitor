@@ -1,0 +1,22 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - firmware_data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+volumes:
+  firmware_data:
+

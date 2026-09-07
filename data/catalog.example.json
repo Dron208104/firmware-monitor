@@ -1,0 +1,7 @@
+{
+  "vendors": [
+    {"name": "QTECH", "slug": "qtech", "enabled": true, "models": [{"name": "QSW-4610-28T-AC", "enabled": true, "snmp_profile": null}]},
+    {"name": "Eltex", "slug": "eltex", "enabled": true, "models": [{"name": "MES2428P", "enabled": true, "snmp_profile": null}]},
+    {"name": "D-Link", "slug": "d-link", "enabled": true, "models": [{"name": "DGS-1100-08V2", "enabled": true, "snmp_profile": null}]}
+  ]
+}
