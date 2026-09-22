@@ -1,0 +1,21 @@
+.modal-card {
+  height: min(688px, calc(100dvh - 32px));
+}
+
+.model-warning {
+  padding: 9px 11px;
+  border: 1px solid #ff7a004d;
+  border-radius: 7px;
+  background: #ff7a000d;
+  color: #c9a17c;
+  font-size: 11px;
+}
+
+.model-warning[hidden] { display: none; }
+.modal-grid > [hidden] { display: none !important; }
+
+@media (max-width: 639px) {
+  .modal-card {
+    height: min(688px, calc(100dvh - 16px));
+  }
+}

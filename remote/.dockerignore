@@ -1,0 +1,17 @@
+.git
+.env
+.env.*
+!.env.example
+.venv
+.venv-*
+__pycache__
+.pytest_cache
+tests
+*.db
+*.sqlite*
+*.py[cod]
+*.log
+dist
+build
+coverage
+node_modules

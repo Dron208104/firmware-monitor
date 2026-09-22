@@ -1,0 +1,12 @@
+{% macro page_header(eyebrow, title, description) -%}
+<header class="page-header">
+  <div class="page-header__content">
+    <div class="page-header__eyebrow">{{ eyebrow }}</div>
+    <h1 class="page-header__title">{{ title }}</h1>
+    <p class="page-header__description">{{ description }}</p>
+  </div>
+  {% if caller is defined %}
+  <div class="page-header__actions">{{ caller() }}</div>
+  {% endif %}
+</header>
+{%- endmacro %}

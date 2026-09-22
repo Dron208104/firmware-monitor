@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% from '_page_header.html' import page_header %}
+{% block content %}
+{% call page_header('СЕТЕВАЯ ИНФРАСТРУКТУРА', 'Оборудование', 'Контроль версий прошивок и состояния сетевых устройств') %}
+<form method="post" action="/check-all"><input type="hidden" name="csrf" value="{{csrf}}"><button class="btn secondary" {% if counts.total==0 %}disabled title="Нет устройств для проверки"{% endif %}>{{icon('refresh')}}Проверить все</button></form>
+<a class="btn primary" href="/devices/new">{{icon('plus')}}Добавить устройство</a>
+{% endcall %}
+<section class="metrics">
+  <article><i>{{icon('server')}}</i><span><small>Всего устройств</small><b>{{counts.total}}</b></span></article>
+  <article class="orange"><i>{{icon('refresh')}}</i><span><small>Доступны обновления</small><b>{{counts.updates}}</b></span></article>
+  <article class="green"><i>{{icon('check')}}</i><span><small>Версии актуальны</small><b>{{counts.current}}</b></span></article>
+  <article class="blue"><i>{{icon('alert')}}</i><span><small>Требуют проверки</small><b>{{counts.review}}</b></span></article>
+</section>
+{% if attention_problems %}<section class="attention">{{icon('alert')}}<div><strong>Требуется внимание</strong><p>{{attention_problems|length}} {{'устройство требует' if attention_problems|length==1 else 'устройств требуют'}} проверки из-за ошибок, неизвестных версий или ненастроенных источников.</p></div><a href="#equipment" data-attention-filter="problems">Показать</a></section>{% elif attention_updates %}<section class="attention updates">{{icon('refresh')}}<div><strong>Доступны обновления</strong><p>Для {{attention_updates|length}} {{'устройства найдена' if attention_updates|length==1 else 'устройств найдены'}} новые версии прошивки.</p></div><a href="#equipment" data-attention-filter="updates">Показать</a></section>{% endif %}
+<div class="equipment-layout">
+  <aside class="folder-panel" aria-label="Каталоги оборудования"><div class="folder-heading"><strong>Каталоги</strong><button type="button" id="add-folder" aria-label="Добавить каталог" title="Добавить каталог">+</button></div><nav id="folder-tree" aria-label="Фильтр по каталогу"></nav></aside>
+  <section class="panel" id="equipment">
+    <div class="equipment-count"><span id="visible-count">{{devices|length}}</span> из {{counts.total}} устройств</div>
+    <div class="filters"><label>{{icon('search')}}<input id="device-search" value="{{q}}" placeholder="Поиск по имени, IP-адресу или модели"></label><select id="vendor-filter"><option value="">Все производители</option>{% for v in ['QTECH','Eltex','D-Link','MikroTik'] %}<option value="{{v}}" {{'selected' if vendor==v}}>{{v}}</option>{% endfor %}</select><select id="status-filter"><option value="">Все статусы</option>{% for s in ['Актуальная версия','Доступно обновление','Версия не указана','Устройство недоступно','Не удалось проверить источник','Модель не поддерживается'] %}<option value="{{s}}" {{'selected' if status==s}}>{{s}}</option>{% endfor %}</select></div>
+    <div class="table-wrap" data-equipment-results data-total-devices="{{counts.total}}">
+      {% if counts.total==0 %}
+      <div class="empty" id="devices-empty">{{icon('server')}}<h3>Устройства ещё не добавлены</h3><p>Добавьте первый коммутатор, чтобы отслеживать прошивки и доступные обновления.</p><a class="btn primary" href="/devices/new">{{icon('plus')}}Добавить первое устройство</a></div>
+      {% else %}
+      <table>
+        <thead><tr><th>Устройство</th><th>IP-адрес</th><th>Производитель</th><th>Модель</th><th>Установлена</th><th>Доступна</th><th>Статус</th><th>Последняя проверка</th><th></th></tr></thead>
+        <tbody id="device-rows">
+        {% for d in devices %}
+          <tr data-device-id="{{d.id}}" data-folder="{{d.folder_id or ''}}" data-search="{{(d.name~' '~d.ip_address~' '~d.model)|lower}}" data-vendor="{{d.vendor}}" data-status="{{d.status}}">
+            <td><div class="device">{{icon('server')}}<strong>{{d.name}}</strong></div></td><td class="mono">{{d.ip_address}}</td><td>{{d.vendor}}</td>
+            <td>{{d.model}}{% if d.hardware_revision %}<small>Рев. {{d.hardware_revision}}</small>{% endif %}</td><td class="mono">{{d.installed_version or '—'}}</td>
+            <td class="mono">{{d.available_version or '—'}}{% if d.download_url %}<a class="download" href="{{d.download_url}}" target="_blank" rel="noopener">Скачать</a>{% endif %}</td>
+            <td>{% set cls='ok' if d.status=='Актуальная версия' else 'update' if d.status=='Доступно обновление' else 'pending' if d.status=='Версия не указана' else 'error' %}<span class="status {{cls}}"><i></i>{{'Актуально' if cls=='ok' else 'Есть обновление' if cls=='update' else 'Нужна проверка' if cls=='pending' else 'Недоступно' if d.status=='Устройство недоступно' else 'Ошибка'}}</span></td>
+            <td>{{d.last_checked_at.strftime('%d.%m.%Y') if d.last_checked_at else '—'}}<small>{{d.last_checked_at.strftime('%H:%M') if d.last_checked_at else 'Не проверялось'}}</small></td>
+            <td><div class="row-actions"><a href="/devices/{{d.id}}/edit" title="Изменить">{{icon('edit')}}</a><form method="post" action="/devices/{{d.id}}/check"><input type="hidden" name="csrf" value="{{csrf}}"><button title="Проверить обновления">{{icon('refresh')}}</button></form><form method="post" action="/devices/{{d.id}}/connection"><input type="hidden" name="csrf" value="{{csrf}}"><button title="Проверить подключение">{{icon('link')}}</button></form><form method="post" action="/devices/{{d.id}}/delete"><input type="hidden" name="csrf" value="{{csrf}}"><button class="danger" title="Удалить">{{icon('trash')}}</button></form></div></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div class="empty filtered" id="filtered-empty" hidden>{{icon('search')}}<h3>Ничего не найдено</h3><p>Измените запрос или параметры фильтра.</p><button class="btn secondary" type="button" data-reset-equipment-filters>Сбросить фильтры</button></div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+<dialog class="device-delete-dialog" id="device-delete-dialog"><form method="dialog"><header><span class="device-delete-dialog__icon">{{icon('trash')}}</span><div><em>ПОДТВЕРЖДЕНИЕ</em><h2>Удалить устройство?</h2><p>Устройство <strong data-delete-device-name></strong> будет удалено из Firmware Monitor.</p></div></header><label class="device-delete-confirm"><input type="checkbox" data-delete-confirm-check><span><strong>Подтверждаю удаление</strong><small>Это действие нельзя отменить.</small></span></label><footer><button class="btn secondary" value="cancel">Отмена</button><button class="btn danger" type="button" data-delete-confirm-button disabled>Удалить устройство</button></footer></form></dialog>
+{% endblock %}

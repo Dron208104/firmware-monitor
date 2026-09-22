@@ -1,0 +1,49 @@
+.event-card {
+  position: relative;
+  grid-template-columns: 36px minmax(0, 1fr) 220px;
+}
+
+.event-content > div time {
+  position: absolute;
+  top: 50%;
+  right: 250px;
+  width: 145px;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transform: translateY(-50%);
+}
+
+.event-content > div {
+  padding-right: 165px;
+}
+
+.event-content > small:last-child {
+  display: none;
+}
+
+.event-actions {
+  width: 220px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  .event-card {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .event-content > div {
+    padding-right: 0;
+  }
+
+  .event-content > div time {
+    position: static;
+    width: auto;
+    text-align: left;
+    transform: none;
+  }
+
+  .event-actions {
+    width: auto;
+  }
+}
