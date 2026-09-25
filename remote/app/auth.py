@@ -1,7 +1,8 @@
 import hashlib
 import secrets
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 from datetime import datetime, timedelta, timezone
+from threading import Lock
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
@@ -13,7 +14,10 @@ from .models import AdminAuditLog, User, UserSession
 
 SESSION_COOKIE = "firmware_session"
 _hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
-_attempts: dict[str, deque[datetime]] = defaultdict(deque)
+_dummy_password_hash = _hasher.hash(secrets.token_urlsafe(32))
+_attempts: OrderedDict[str, deque[datetime]] = OrderedDict()
+_attempts_lock = Lock()
+_max_attempt_keys = 10_000
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -31,6 +35,12 @@ def verify_password(password_hash: str, password: str) -> bool:
         return _hasher.verify(password_hash, password)
     except (VerifyMismatchError, InvalidHashError):
         return False
+
+def verify_user_credentials(user: User | None, password: str) -> bool:
+    """Perform one Argon2 verification even when the account is absent or blocked."""
+    password_hash = user.password_hash if user and user.active else _dummy_password_hash
+    valid = verify_password(password_hash, password)
+    return bool(user and user.active and valid)
 
 def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
@@ -71,16 +81,32 @@ def rate_key(ip: str, username: str) -> str:
 
 def login_allowed(key: str) -> bool:
     cutoff = utcnow()-timedelta(minutes=15)
-    attempts = _attempts[key]
-    while attempts and attempts[0] < cutoff:
-        attempts.popleft()
-    return len(attempts) < 5
+    with _attempts_lock:
+        attempts = _attempts.get(key)
+        if attempts is None:
+            return True
+        while attempts and attempts[0] < cutoff:
+            attempts.popleft()
+        if not attempts:
+            _attempts.pop(key, None)
+            return True
+        _attempts.move_to_end(key)
+        return len(attempts) < 5
 
 def record_login_failure(key: str) -> None:
-    _attempts[key].append(utcnow())
+    with _attempts_lock:
+        attempts = _attempts.get(key)
+        if attempts is None:
+            if len(_attempts) >= _max_attempt_keys:
+                _attempts.popitem(last=False)
+            attempts = deque()
+            _attempts[key] = attempts
+        attempts.append(utcnow())
+        _attempts.move_to_end(key)
 
 def clear_login_failures(key: str) -> None:
-    _attempts.pop(key, None)
+    with _attempts_lock:
+        _attempts.pop(key, None)
 
 def active_admin_count(db: Session) -> int:
     return db.scalar(select(func.count(User.id)).where(User.role=="admin", User.active.is_(True))) or 0

@@ -9,6 +9,7 @@ from app.firmware.providers import base
 from app.firmware.providers.dlink import DlinkFirmwareProvider
 from app.main import app
 from app import mailer
+from app import auth
 
 
 def test_oversized_request_is_rejected_before_form_parsing():
@@ -25,6 +26,32 @@ def test_dynamic_responses_have_security_and_private_cache_headers():
     assert response.headers["x-frame-options"]=="DENY"
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
     assert response.headers["cache-control"]=="no-store"
+    assert response.headers["cross-origin-opener-policy"]=="same-origin"
+    assert response.headers["cross-origin-resource-policy"]=="same-origin"
+    assert response.headers["x-permitted-cross-domain-policies"]=="none"
+
+
+def test_hsts_is_only_enabled_for_secure_cookie_configuration(monkeypatch):
+    monkeypatch.setattr(settings,"session_cookie_secure",True)
+    with TestClient(app) as client:
+        response=client.get("/login")
+    assert response.headers["strict-transport-security"].startswith("max-age=31536000")
+
+
+def test_unknown_account_still_runs_password_verification(monkeypatch):
+    calls=[]
+    monkeypatch.setattr(auth,"verify_password",lambda password_hash,password:calls.append((password_hash,password)) or False)
+    assert auth.verify_user_credentials(None,"guess") is False
+    assert len(calls)==1 and calls[0][1]=="guess"
+
+
+def test_login_attempt_cache_is_bounded(monkeypatch):
+    monkeypatch.setattr(auth,"_max_attempt_keys",3)
+    auth._attempts.clear()
+    for index in range(5):
+        auth.record_login_failure(f"client:{index}")
+    assert len(auth._attempts)==3
+    auth._attempts.clear()
 
 
 def test_smtp_rejects_loopback_before_connection(monkeypatch):

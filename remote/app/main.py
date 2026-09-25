@@ -25,7 +25,7 @@ from .security import csrf_token, encrypt_secret, validate_encryption_configurat
 from .source_status import source_status_view
 from .versioning import compare_for_vendor
 from .firmware.service import check_model_source, latest_release, queue_firmware_reminders
-from .auth import SESSION_COOKIE, active_admin_count, audit, clear_login_failures, create_initial_admin, create_session, hash_password, login_allowed, normalize_username, rate_key, record_login_failure, revoke_session, session_user, token_hash, verify_password
+from .auth import SESSION_COOKIE, active_admin_count, audit, clear_login_failures, create_initial_admin, create_session, hash_password, login_allowed, normalize_username, rate_key, record_login_failure, revoke_session, session_user, token_hash, verify_password, verify_user_credentials
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 BASE = Path(__file__).parent
@@ -65,7 +65,11 @@ class SecurityHeadersMiddleware:
                 headers["X-Frame-Options"]="DENY"
                 headers["Referrer-Policy"]="same-origin"
                 headers["Permissions-Policy"]="camera=(), microphone=(), geolocation=()"
+                headers["Cross-Origin-Opener-Policy"]="same-origin"
+                headers["Cross-Origin-Resource-Policy"]="same-origin"
+                headers["X-Permitted-Cross-Domain-Policies"]="none"
                 headers["Content-Security-Policy"]="default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'"
+                if settings.session_cookie_secure:headers["Strict-Transport-Security"]="max-age=31536000; includeSubDomains"
                 if not scope.get("path","").startswith("/static/"):headers["Cache-Control"]="no-store"
             await send(message)
         return await self.app(scope,receive,secured_send)
@@ -183,7 +187,7 @@ async def login(request:Request,username:str=Form(...),password:str=Form(...),cs
     if not login_allowed(key): return RedirectResponse("/login?error=Слишком+много+попыток.+Повторите+позже",303)
     with SessionLocal() as db:
         user=db.scalar(select(User).where(User.username==normalize_username(username)))
-        if not user or not user.active or not verify_password(user.password_hash,password):
+        if not verify_user_credentials(user,password):
             record_login_failure(key)
             return RedirectResponse("/login?error=Неверный+логин+или+пароль",303)
         clear_login_failures(key)

@@ -1,4 +1,4 @@
-from sqlalchemy import inspect, text
+from sqlalchemy import bindparam, inspect, text
 
 COLUMNS = {
     "management_port": "INTEGER NOT NULL DEFAULT 161",
@@ -162,9 +162,12 @@ def migrate_sqlite(engine):
             connection.execute(text("UPDATE equipment_models SET model_requires_clarification=0,series=:series,firmware_provider='qtech',firmware_page_url=:url,parsing_parameters=:parameters WHERE vendor_id=:vendor AND normalized_name=:new"),{"series":series,"url":url,"parameters":parameters,"vendor":qtech_id,"new":new_name})
 
         exact_qtech_models=("QSW-3750-10T-AC-R","QSW-3750-28T-AC-R","QSW-4530-54TX","QSW-4610-10T-POE-AC","QSW-4610-28T-AC","QSW-4700-52TX","QSW-6910-26F")
-        placeholders=','.join(f"'{name}'" for name in exact_qtech_models)
-        connection.execute(text(f"UPDATE equipment_models SET model_requires_clarification=0,latest_check_status=CASE WHEN latest_check_status='Требуется уточнить модель' THEN 'Не проверялся' ELSE latest_check_status END,latest_check_error=CASE WHEN latest_check_status='Требуется уточнить модель' THEN NULL ELSE latest_check_error END,latest_checked_at=CASE WHEN latest_check_status='Требуется уточнить модель' THEN NULL ELSE latest_checked_at END WHERE vendor_id=:vendor AND normalized_name IN ({placeholders})"),{"vendor":qtech_id})
-        connection.execute(text(f"UPDATE devices SET status='Требуется проверка' WHERE status='Требуется уточнить модель' AND catalog_model_id IN (SELECT id FROM equipment_models WHERE vendor_id=:vendor AND normalized_name IN ({placeholders}))"),{"vendor":qtech_id})
+        exact_models_parameter=bindparam("exact_models",expanding=True)
+        model_cleanup=text("UPDATE equipment_models SET model_requires_clarification=0,latest_check_status=CASE WHEN latest_check_status='Требуется уточнить модель' THEN 'Не проверялся' ELSE latest_check_status END,latest_check_error=CASE WHEN latest_check_status='Требуется уточнить модель' THEN NULL ELSE latest_check_error END,latest_checked_at=CASE WHEN latest_check_status='Требуется уточнить модель' THEN NULL ELSE latest_checked_at END WHERE vendor_id=:vendor AND normalized_name IN :exact_models").bindparams(exact_models_parameter)
+        device_cleanup=text("UPDATE devices SET status='Требуется проверка' WHERE status='Требуется уточнить модель' AND catalog_model_id IN (SELECT id FROM equipment_models WHERE vendor_id=:vendor AND normalized_name IN :exact_models)").bindparams(exact_models_parameter)
+        parameters={"vendor":qtech_id,"exact_models":exact_qtech_models}
+        connection.execute(model_cleanup,parameters)
+        connection.execute(device_cleanup,parameters)
         connection.execute(text("INSERT OR IGNORE INTO equipment_vendors(name,slug,enabled) VALUES ('MikroTik','mikrotik',1)"))
         mikrotik_id=connection.execute(text("SELECT id FROM equipment_vendors WHERE slug='mikrotik'")).scalar_one()
         for model_name in ("RB4011iGS+RM","RB4011iGS+5HacQ2HnD-IN"):
