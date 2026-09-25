@@ -21,8 +21,8 @@ Firmware Monitor — self-hosted система учёта сетевого об
 Требования: Linux-сервер, Docker Engine, Docker Compose v2 и OpenSSL.
 
 ```bash
-git clone <АДРЕС_РЕПОЗИТОРИЯ>
-cd Firmware-monitor/remote
+git clone https://github.com/Dron208104/firmware-monitor.git
+cd firmware-monitor/remote
 chmod +x scripts/*.sh
 ./scripts/install.sh
 ```
