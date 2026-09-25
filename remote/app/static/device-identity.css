@@ -1,0 +1,20 @@
+/* Let the device name and description use the width available to the table. */
+.equipment-layout .table-wrap { overflow-x: hidden; }
+.equipment-layout .table-wrap table { width: 100%; min-width: 0; table-layout: fixed; }
+.equipment-layout .table-wrap th:first-child,
+.equipment-layout .table-wrap td:first-child { width: 20%; min-width: 0; }
+.equipment-layout .table-wrap tbody tr { height: auto; }
+.equipment-layout .table-wrap .device { min-width: 0; white-space: normal; }
+.equipment-layout .table-wrap .device>.icon { align-self: flex-start; }
+.equipment-layout .table-wrap .device-copy { display: block; min-width: 0; flex: 1; }
+.equipment-layout .table-wrap .device-copy strong,
+.equipment-layout .table-wrap .device-comment {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+.equipment-layout .table-wrap .device-comment { margin-top: 3px; color: var(--muted); font-size: 11px; }

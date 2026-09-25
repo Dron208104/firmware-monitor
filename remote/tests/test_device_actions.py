@@ -3,6 +3,7 @@ from pathlib import Path
 JS=(Path(__file__).parents[1]/"app"/"static"/"app.js").read_text(encoding="utf-8")
 CSS=(Path(__file__).parents[1]/"app"/"static"/"style.css").read_text(encoding="utf-8")
 FOLDERS_CSS=(Path(__file__).parents[1]/"app"/"static"/"folders.css").read_text(encoding="utf-8")
+IDENTITY_CSS=(Path(__file__).parents[1]/"app"/"static"/"device-identity.css").read_text(encoding="utf-8")
 
 def test_firmware_actions_depend_on_backend_urls():
     assert "if(device.download_url&&device.status==='Есть обновление')" in JS
@@ -36,15 +37,29 @@ def test_primary_and_secondary_actions_are_separated():
 def test_changelog_localization_observer_does_not_loop_forever():
     assert "if(label.textContent!=='Изменения')" in JS
 
-def test_successful_create_closes_modal_before_table_refresh_and_blocks_duplicates():
+def test_successful_create_reloads_canonical_table_row_and_blocks_duplicates():
     assert "if(submit.disabled)return;submit.disabled=true" in JS
-    assert JS.index("closeModal();showToast('Устройство добавлено')") < JS.index("tbody.append(rowFor(result))")
+    submit_handler=JS[JS.index("form?.addEventListener('submit'"):JS.index("const search=")]
+    assert "location.reload()" in submit_handler
+    assert "tbody.append(rowFor(result))" not in submit_handler
 
 def test_device_table_supports_name_ip_sorting_and_comments():
     assert "[['name','Устройство'],['ip','IP-адрес']]" in JS
     assert "const compareIp=" in JS
     assert "device.description||''" in JS
     assert "device-comment" in JS
+
+def test_device_name_and_description_wrap_without_truncation():
+    html=(Path(__file__).parents[1]/"app"/"templates"/"dashboard.html").read_text(encoding="utf-8")
+    assert '<span class="device-copy"><strong>{{d.name}}</strong>' in html
+    assert '<small class="device-comment">{{d.description}}</small>' in html
+    assert 'href="/static/device-identity.css?v=1"' in html
+    assert "identity.className='device-copy'" in JS
+    assert "description.className='device-comment'" in JS
+    assert "white-space: normal" in IDENTITY_CSS
+    assert "overflow-wrap: anywhere" in IDENTITY_CSS
+    assert ".table-wrap { overflow-x: hidden; }" in IDENTITY_CSS
+    assert "min-width: 0; table-layout: fixed" in IDENTITY_CSS
 
 def test_missing_firmware_actions_have_disabled_placeholders():
     assert "const alignFirmwareActions=" in JS
@@ -53,6 +68,17 @@ def test_missing_firmware_actions_have_disabled_placeholders():
     assert "Описание изменений недоступно" in JS
     assert "button.disabled=true" in JS
     assert "actions.replaceChildren(download,changelog,more)" in JS
+
+
+def test_shared_dialog_assets_replace_native_browser_dialogs():
+    root=Path(__file__).parents[1]
+    base=(root/"app/templates/base.html").read_text(encoding="utf-8")
+    dialog_js=(root/"app/static/dialog-system.js").read_text(encoding="utf-8")
+    all_js="\n".join(path.read_text(encoding="utf-8") for path in (root/"app/static").glob("*.js"))
+    assert '/static/dialogs.css?v=1' in base
+    assert '/static/dialog-system.js?v=1' in base
+    assert "requireConfirmation" in dialog_js and "showModal()" in dialog_js
+    assert not __import__("re").search(r"(?<![.\w])(confirm|prompt|alert)\s*\(",all_js)
     assert ".firmware-action-placeholder" in FOLDERS_CSS
     assert "grid-template-columns:86px 104px 30px" in FOLDERS_CSS
     assert "cursor:not-allowed" in FOLDERS_CSS
@@ -90,8 +116,9 @@ def test_equipment_empty_states_are_mutually_exclusive():
     assert "let totalDevices=Number(" in JS
     assert "hasAnyDevices=totalDevices>0,hasVisibleDevices=visible>0" in JS
     assert "table.hidden=!hasVisibleDevices" in JS
-    assert "emptyDevices.hidden=hasAnyDevices" in JS
-    assert "noResults.hidden=!hasAnyDevices||hasVisibleDevices" in JS
+    assert "if(!hasAnyDevices){noResults?.remove()" in JS
+    assert "emptyDevices.hidden=true" in JS
+    assert "noResults.hidden=hasVisibleDevices" in JS
 
 def test_equipment_no_results_can_reset_filters_and_check_all_is_disabled_when_empty():
     html=(Path(__file__).parents[1]/"app"/"templates"/"dashboard.html").read_text(encoding="utf-8")

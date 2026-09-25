@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% from '_page_header.html' import page_header %}
 {% block content %}
+<link rel="stylesheet" href="/static/device-identity.css?v=1">
 {% call page_header('СЕТЕВАЯ ИНФРАСТРУКТУРА', 'Оборудование', 'Контроль версий прошивок и состояния сетевых устройств') %}
 <form method="post" action="/check-all"><input type="hidden" name="csrf" value="{{csrf}}"><button class="btn secondary" {% if counts.total==0 %}disabled title="Нет устройств для проверки"{% endif %}>{{icon('refresh')}}Проверить все</button></form>
 <a class="btn primary" href="/devices/new">{{icon('plus')}}Добавить устройство</a>
@@ -26,10 +27,10 @@
         <tbody id="device-rows">
         {% for d in devices %}
           <tr data-device-id="{{d.id}}" data-folder="{{d.folder_id or ''}}" data-search="{{(d.name~' '~d.ip_address~' '~d.model)|lower}}" data-vendor="{{d.vendor}}" data-status="{{d.status}}">
-            <td><div class="device">{{icon('server')}}<strong>{{d.name}}</strong></div></td><td class="mono">{{d.ip_address}}</td><td>{{d.vendor}}</td>
+            <td><div class="device">{{icon('server')}}<span class="device-copy"><strong>{{d.name}}</strong>{% if d.description %}<small class="device-comment">{{d.description}}</small>{% endif %}</span></div></td><td class="mono">{{d.ip_address}}</td><td>{{d.vendor}}</td>
             <td>{{d.model}}{% if d.hardware_revision %}<small>Рев. {{d.hardware_revision}}</small>{% endif %}</td><td class="mono">{{d.installed_version or '—'}}</td>
             <td class="mono">{{d.available_version or '—'}}{% if d.download_url %}<a class="download" href="{{d.download_url}}" target="_blank" rel="noopener">Скачать</a>{% endif %}</td>
-            <td>{% set cls='ok' if d.status=='Актуальная версия' else 'update' if d.status=='Доступно обновление' else 'pending' if d.status=='Версия не указана' else 'error' %}<span class="status {{cls}}"><i></i>{{'Актуально' if cls=='ok' else 'Есть обновление' if cls=='update' else 'Нужна проверка' if cls=='pending' else 'Недоступно' if d.status=='Устройство недоступно' else 'Ошибка'}}</span></td>
+            <td>{% set cls='ok' if d.status in ['Актуально','Актуальная версия'] else 'update' if d.status in ['Есть обновление','Доступно обновление'] else 'error' if d.status in ['Устройство недоступно','Источник недоступен'] or 'Ошибка' in d.status else 'pending' %}<span class="status {{cls}}" title="{{d.status}}"><i></i>{{'Актуально' if cls=='ok' else 'Есть обновление' if cls=='update' else 'Недоступно' if d.status in ['Устройство недоступно','Источник недоступен'] else 'Ошибка' if cls=='error' else 'Нужна проверка'}}</span></td>
             <td>{{d.last_checked_at.strftime('%d.%m.%Y') if d.last_checked_at else '—'}}<small>{{d.last_checked_at.strftime('%H:%M') if d.last_checked_at else 'Не проверялось'}}</small></td>
             <td><div class="row-actions"><a href="/devices/{{d.id}}/edit" title="Изменить">{{icon('edit')}}</a><form method="post" action="/devices/{{d.id}}/check"><input type="hidden" name="csrf" value="{{csrf}}"><button title="Проверить обновления">{{icon('refresh')}}</button></form><form method="post" action="/devices/{{d.id}}/connection"><input type="hidden" name="csrf" value="{{csrf}}"><button title="Проверить подключение">{{icon('link')}}</button></form><form method="post" action="/devices/{{d.id}}/delete"><input type="hidden" name="csrf" value="{{csrf}}"><button class="danger" title="Удалить">{{icon('trash')}}</button></form></div></td>
           </tr>

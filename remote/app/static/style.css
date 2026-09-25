@@ -11,3 +11,4 @@
 @media(max-width:450px){.page-header__title{font-size:26px}.page-header__actions{flex-direction:column-reverse}.page-header__description{font-size:14px}}
 .action-more[open] .action-menu{position:fixed;inset:auto;z-index:250;width:190px;max-height:min(240px,calc(100vh - 20px));overflow-y:auto}.action-more[open] summary{border-color:#ff7a0080;color:var(--accent);background:#21170f}
 .brand-logo{display:block;width:42px;height:28px;object-fit:contain;flex:0 0 42px}.brand{gap:10px}
+.table-wrap th:nth-child(7),.table-wrap td:nth-child(7){width:150px;min-width:150px}.table-wrap th:nth-child(8),.table-wrap td:nth-child(8){width:145px;min-width:145px}.table-wrap td:nth-child(7) .status{width:122px;min-width:122px;justify-content:center;overflow:hidden;text-overflow:ellipsis}.table-wrap td:nth-child(8){white-space:nowrap}
