@@ -16,3 +16,6 @@ dist/
 build/
 coverage/
 node_modules/
+backups/
+*.before-restore
+tests/.tmp-manage/

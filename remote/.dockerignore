@@ -15,3 +15,6 @@ dist
 build
 coverage
 node_modules
+backups
+docs
+SECURITY_AUDIT.md
