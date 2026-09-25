@@ -3,12 +3,10 @@ from time import monotonic
 from urllib.parse import urljoin
 import re
 
-import httpx
 from bs4 import BeautifulSoup
 
-from ...config import settings
 from ...versioning import normalize_zyxel_version
-from .base import FirmwareProvider, FirmwareResult
+from .base import FirmwareProvider, FirmwareResult, fetch_limited
 
 
 class ZyxelFirmwareProvider(FirmwareProvider):
@@ -32,14 +30,12 @@ class ZyxelFirmwareProvider(FirmwareProvider):
         return version,download,notes.get(version),filename
 
     async def fetch(self,vendor,model):
-        url=model.firmware_page_url;self.validate_source(url);start=monotonic();timeout=httpx.Timeout(settings.request_timeout_seconds,connect=min(5,settings.request_timeout_seconds))
+        url=model.firmware_page_url;self.validate_source(url);start=monotonic()
         try:
-            async with httpx.AsyncClient(timeout=timeout,follow_redirects=True,max_redirects=3,headers={"User-Agent":"Firmware Monitor/1.0"}) as client:response=await client.get(url)
-            self.validate_source(str(response.url));response.raise_for_status()
-            if len(response.content)>settings.max_response_bytes:raise ValueError("Ответ официального источника слишком велик")
+            content,response_url,status_code,encoding=await fetch_limited(url,self.validate_source)
         except Exception as exc:raise RuntimeError("Официальный источник Zyxel недоступен") from exc
-        found=self.parse(response.text,str(response.url),model.name);checked=datetime.now(timezone.utc);elapsed=int((monotonic()-start)*1000)
-        if not found:return FirmwareResult(vendor.name,model.name,None,None,str(response.url),None,None,None,checked,"Совместимость не подтверждена","Файл GS1900-8 с кодом AAHH не найден",source_status="compatibility_unconfirmed",http_status=response.status_code,response_time_ms=elapsed)
+        found=self.parse(content.decode(encoding,errors="replace"),response_url,model.name);checked=datetime.now(timezone.utc);elapsed=int((monotonic()-start)*1000)
+        if not found:return FirmwareResult(vendor.name,model.name,None,None,response_url,None,None,None,checked,"Совместимость не подтверждена","Файл GS1900-8 с кодом AAHH не найден",source_status="compatibility_unconfirmed",http_status=status_code,response_time_ms=elapsed)
         version,download,changelog,filename=found;self.validate_source(download)
         if changelog:self.validate_source(changelog)
-        return FirmwareResult(vendor.name,model.name,version,None,str(response.url),download,None,None,checked,"Прошивка найдена",None,changelog,None,filename,"ok",None,response.status_code,elapsed)
+        return FirmwareResult(vendor.name,model.name,version,None,response_url,download,None,None,checked,"Прошивка найдена",None,changelog,None,filename,"ok",None,status_code,elapsed)

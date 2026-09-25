@@ -50,18 +50,11 @@ def create_event(category: str = "updates", dedupe_key: str = "release:1:2.0") -
         return event.id
 
 
-def test_notifications_empty_state_and_category_filter():
-    clear_events()
+def test_notifications_page_redirects_to_email_settings():
     with TestClient(app) as client:
-        empty_html=client.get("/notifications").text
-        assert "Уведомлений пока нет" in empty_html
-        assert 'data-read-all disabled' in empty_html
-        assert 'data-clear-read disabled' in empty_html
-        create_event()
-        html = client.get("/notifications?kind=updates").text
-        assert "Доступна новая версия" in html
-        assert "1.0" in html and "2.0" in html
-        assert "Доступна новая версия" not in client.get("/notifications?kind=errors").text
+        response=client.get("/notifications",follow_redirects=False)
+        assert response.status_code==303
+        assert response.headers["location"]=="/settings?tab=notifications"
 
 def test_notification_disabled_buttons_have_inactive_style():
     css=(__import__("pathlib").Path(__file__).parents[1]/"app/static/notifications.css").read_text(encoding="utf-8")

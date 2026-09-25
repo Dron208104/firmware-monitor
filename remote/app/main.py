@@ -1,35 +1,97 @@
-import ipaddress, json, logging
+import asyncio, ipaddress, json, logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.datastructures import MutableHeaders
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from .config import settings
+from .access_control import is_system_admin, normalize_folder_ids, replace_user_folders, scope_devices, visible_folder_ids
+from .connection_profiles import apply_profile_data, profile_payload
 from .db import Base, SessionLocal, engine, get_db
 from .migrations import migrate_sqlite
-from .models import ApplicationSetting, CheckHistory, ConnectionProfile, Device, EquipmentFolder, EquipmentModel, EquipmentVendor, FirmwareEvent, FirmwareSource, User, UserSession, now
+from . import mailer
+from .models import ApplicationSetting, CheckHistory, ConnectionProfile, Device, EquipmentFolder, EquipmentModel, EquipmentVendor, FirmwareEvent, FirmwareSource, User, UserFolderAccess, UserSession, now
 from .polling import test_connection
 from .schemas import DeviceCreate, DeviceOut
-from .security import csrf_token, encrypt_secret, validate_public_url, validate_firmware_source_url
+from .services import poll_installed_version
+from .snmp import validate_version_settings
+from .security import csrf_token, encrypt_secret, validate_encryption_configuration, validate_public_url, validate_firmware_source_url
+from .source_status import source_status_view
 from .versioning import compare_for_vendor
-from .firmware.service import check_model_source, latest_release
+from .firmware.service import check_model_source, latest_release, queue_firmware_reminders
 from .auth import SESSION_COOKIE, active_admin_count, audit, clear_login_failures, create_initial_admin, create_session, hash_password, login_allowed, normalize_username, rate_key, record_login_failure, revoke_session, session_user, token_hash, verify_password
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 BASE = Path(__file__).parent
 templates = Jinja2Templates(directory=BASE/"templates")
 
+class RequestBodyLimitMiddleware:
+    def __init__(self,app,max_bytes:int):self.app=app;self.max_bytes=max_bytes
+    async def __call__(self,scope,receive,send):
+        if scope["type"]!="http":return await self.app(scope,receive,send)
+        headers=dict(scope.get("headers") or [])
+        try:declared=int(headers.get(b"content-length",b"0"))
+        except ValueError:declared=-1
+        if declared<0:
+            return await JSONResponse({"error":"Некорректный Content-Length"},status_code=400)(scope,receive,send)
+        if declared>self.max_bytes:
+            return await JSONResponse({"error":"Тело запроса слишком велико"},status_code=413)(scope,receive,send)
+        messages=[];total=0
+        while True:
+            message=await receive();messages.append(message)
+            if message["type"]=="http.disconnect":break
+            if message["type"]=="http.request":
+                total+=len(message.get("body",b""))
+                if total>self.max_bytes:
+                    return await JSONResponse({"error":"Тело запроса слишком велико"},status_code=413)(scope,receive,send)
+                if not message.get("more_body",False):break
+        async def replay():
+            return messages.pop(0) if messages else {"type":"http.request","body":b"","more_body":False}
+        return await self.app(scope,replay,send)
+
+class SecurityHeadersMiddleware:
+    def __init__(self,app):self.app=app
+    async def __call__(self,scope,receive,send):
+        async def secured_send(message):
+            if scope["type"]=="http" and message["type"]=="http.response.start":
+                headers=MutableHeaders(scope=message)
+                headers["X-Content-Type-Options"]="nosniff"
+                headers["X-Frame-Options"]="DENY"
+                headers["Referrer-Policy"]="same-origin"
+                headers["Permissions-Policy"]="camera=(), microphone=(), geolocation=()"
+                headers["Content-Security-Policy"]="default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'"
+                if not scope.get("path","").startswith("/static/"):headers["Cache-Control"]="no-store"
+            await send(message)
+        return await self.app(scope,receive,secured_send)
+
 async def scheduled_checks():
     with SessionLocal() as db:
+        started_at=now()
+        devices=db.scalars(select(Device).where(Device.auto_check.is_(True),Device.installed_version_source=="snmp").order_by(Device.id)).all()
+        for device in devices:
+            await poll_installed_version(db,device)
         model_ids=set(db.scalars(select(Device.catalog_model_id).where(Device.auto_check.is_(True),Device.installed_version_source=="snmp",Device.catalog_model_id.is_not(None))).all())
         for model_id in model_ids:
             model=db.get(EquipmentModel,model_id)
             if model: await check_model_source(db,model)
+        queue_firmware_reminders(db,created_before=started_at)
+        if model_ids:
+            models=[db.get(EquipmentModel,model_id) for model_id in sorted(model_ids)]
+            lines="\n".join(
+                f"• {model.vendor.name} {model.name} — {model.latest_check_status or 'статус не указан'}"
+                for model in models if model
+            )
+            mailer.queue_notification(
+                "auto_check_result",
+                "Firmware Monitor — автоматическая проверка завершена",
+                f"Автоматическая проверка прошивок завершена.\n\nПроверено моделей: {len(model_ids)}\n\nРезультаты:\n{lines}\n\nВремя завершения: {now().strftime('%d.%m.%Y %H:%M')}",
+            )
 
 def automation_config(db:Session):
     values={item.key:item.value for item in db.scalars(select(ApplicationSetting).where(ApplicationSetting.key.in_(("auto_check_enabled","auto_check_time")))).all()}
@@ -44,6 +106,7 @@ def configure_automation(app,enabled:bool,check_time:str):
 
 @asynccontextmanager
 async def lifespan(app):
+    validate_encryption_configuration()
     Base.metadata.create_all(engine)
     migrate_sqlite(engine)
     scheduler = AsyncIOScheduler()
@@ -57,6 +120,8 @@ async def lifespan(app):
     scheduler.shutdown(wait=False)
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app.add_middleware(RequestBodyLimitMiddleware,max_bytes=settings.max_request_bytes)
+app.add_middleware(SecurityHeadersMiddleware)
 app.mount("/static", StaticFiles(directory=BASE/"static"), name="static")
 
 @app.middleware("http")
@@ -76,7 +141,7 @@ async def authentication(request:Request, call_next):
         if request.url.path.startswith("/api/"):
             return JSONResponse({"error":"Необходимо сменить временный пароль"},status_code=403)
         return RedirectResponse("/change-password",303)
-    admin_only=("/settings","/profiles","/users","/api/settings","/api/firmware-sources","/api/vendors","/api/models","/api/connection-profiles")
+    admin_only=("/settings","/profiles","/users","/docs","/redoc","/openapi.json","/api/settings","/api/firmware-sources","/api/vendors","/api/models","/api/connection-profiles")
     viewer_allowed={"/logout","/api/session/touch","/change-password"}
     forbidden=user.role!="admin" and request.url.path not in viewer_allowed and (request.method not in {"GET","HEAD"} or request.url.path.startswith(admin_only) or (request.url.path.startswith("/devices/") and request.url.path.endswith("/edit")))
     if forbidden:
@@ -205,11 +270,11 @@ def health(): return {"status":"ok"}
 
 @app.get("/",response_class=HTMLResponse)
 def dashboard(request:Request,q:str="",vendor:str="",status:str="",db:Session=Depends(get_db)):
-    stmt=select(Device)
+    stmt=scope_devices(select(Device),db,getattr(request.state,"user",None))
     if q: stmt=stmt.where(or_(Device.name.contains(q),Device.ip_address.contains(q),Device.vendor.contains(q),Device.model.contains(q)))
     if vendor: stmt=stmt.where(Device.vendor==vendor)
     if status: stmt=stmt.where(Device.status==status)
-    devices=db.scalars(stmt.order_by(Device.name)).all(); all_devices=db.scalars(select(Device)).all()
+    devices=db.scalars(stmt.order_by(Device.name)).all(); all_devices=db.scalars(scope_devices(select(Device),db,getattr(request.state,"user",None))).all()
     attention_statuses={"Доступно обновление","Есть обновление","Требуется проверка","Версия не определена","Устройство недоступно","Не удалось проверить источник","Модель не поддерживается"}
     update_statuses={"Доступно обновление","Есть обновление"}; current_statuses={"Актуальная версия","Актуально"}
     counts={"total":len(all_devices),"updates":sum(x.status in update_statuses for x in all_devices),"current":sum(x.status in current_statuses for x in all_devices),"review":sum(x.status not in update_statuses|current_statuses for x in all_devices)}
@@ -217,13 +282,13 @@ def dashboard(request:Request,q:str="",vendor:str="",status:str="",db:Session=De
     return page(request,"dashboard.html",devices=devices,counts=counts,attention=updates+problems,attention_updates=updates,attention_problems=problems,q=q,vendor=vendor,status=status)
 
 @app.get("/api/devices",response_model=list[DeviceOut])
-def api_devices(db:Session=Depends(get_db)): return [serialize(x,db) for x in db.scalars(select(Device).order_by(Device.name)).all()]
+def api_devices(request:Request,db:Session=Depends(get_db)): return [serialize(x,db) for x in db.scalars(scope_devices(select(Device),db,getattr(request.state,"user",None)).order_by(Device.name)).all()]
 
 def vendor_json(v): return {"id":v.id,"name":v.name,"slug":v.slug,"enabled":v.enabled}
-def model_json(m): return {"id":m.id,"vendor_id":m.vendor_id,"vendor":m.vendor.name,"name":m.name,"display_name":m.display_name or f"{m.vendor.name} {m.name}","normalized_name":m.normalized_name,"series":m.series,"firmware_family":m.firmware_family,"compatibility_group":m.compatibility_group,"product_page_url":m.product_page_url,"device_type":m.device_type,"installed_version_method":m.installed_version_method,"version_oid":m.version_oid,"firmware_source_id":m.firmware_source_id,"hardware_revision_required":m.hardware_revision_required,"hardware_revisions":[{"display_revision":r.display_revision,"provider_revision":r.provider_revision,"firmware_path":r.firmware_path} for r in m.hardware_revisions if r.enabled],"model_requires_clarification":m.model_requires_clarification,"support_status":m.support_status,"os_family":m.os_family,"architecture":m.architecture,"update_channel":m.update_channel,"enabled":m.enabled,"snmp_profile":json.loads(m.snmp_profile) if m.snmp_profile else None,"latest_check_status":m.latest_check_status,"latest_checked_at":m.latest_checked_at.isoformat() if m.latest_checked_at else None,"created_at":m.created_at.isoformat() if m.created_at else None,"updated_at":m.updated_at.isoformat() if m.updated_at else None}
+def model_json(m): return {"id":m.id,"vendor_id":m.vendor_id,"vendor":m.vendor.name,"name":m.name,"display_name":m.display_name or f"{m.vendor.name} {m.name}","normalized_name":m.normalized_name,"series":m.series,"firmware_family":m.firmware_family,"compatibility_group":m.compatibility_group,"product_page_url":m.product_page_url,"device_type":m.device_type,"installed_version_method":m.installed_version_method,"version_oid":m.version_oid,"installed_version_pattern":m.installed_version_pattern,"firmware_source_id":m.firmware_source_id,"hardware_revision_required":m.hardware_revision_required,"hardware_revisions":[{"display_revision":r.display_revision,"provider_revision":r.provider_revision,"firmware_path":r.firmware_path} for r in m.hardware_revisions if r.enabled],"model_requires_clarification":m.model_requires_clarification,"support_status":m.support_status,"os_family":m.os_family,"architecture":m.architecture,"update_channel":m.update_channel,"enabled":m.enabled,"snmp_profile":json.loads(m.snmp_profile) if m.snmp_profile else None,"latest_check_status":m.latest_check_status,"latest_checked_at":m.latest_checked_at.isoformat() if m.latest_checked_at else None,"created_at":m.created_at.isoformat() if m.created_at else None,"updated_at":m.updated_at.isoformat() if m.updated_at else None}
 
 def source_json(s,db):
-    return {"id":s.id,"name":s.name,"vendor":s.vendor,"source_type":s.source_type,"base_url":s.base_url,"allowed_domains":[x.strip() for x in s.allowed_domains.split(',') if x.strip()],"config":json.loads(s.config or "{}"),"builtin":bool(s.builtin_provider),"enabled":s.enabled,"draft":s.draft,"last_status":s.last_status,"last_checked_at":s.last_checked_at.isoformat() if s.last_checked_at else None,"last_success_at":s.last_success_at.isoformat() if s.last_success_at else None,"models_count":db.scalar(select(func.count(EquipmentModel.id)).where(EquipmentModel.firmware_source_id==s.id)) or 0}
+    return {"id":s.id,"name":s.name,"vendor":s.vendor,"source_type":s.source_type,"base_url":s.base_url,"allowed_domains":[x.strip() for x in s.allowed_domains.split(',') if x.strip()],"config":json.loads(s.config or "{}"),"builtin":bool(s.builtin_provider),"enabled":s.enabled,"draft":s.draft,"last_status":s.last_status,"display_status":source_status_view(s)[0],"status_class":source_status_view(s)[1],"last_checked_at":s.last_checked_at.isoformat() if s.last_checked_at else None,"last_success_at":s.last_success_at.isoformat() if s.last_success_at else None,"models_count":db.scalar(select(func.count(EquipmentModel.id)).where(EquipmentModel.firmware_source_id==s.id)) or 0}
 
 @app.get("/api/firmware-sources")
 def api_firmware_sources(db:Session=Depends(get_db)): return [source_json(x,db) for x in db.scalars(select(FirmwareSource).order_by(FirmwareSource.vendor)).all()]
@@ -277,8 +342,18 @@ def validate_folder_parent(db:Session,parent_id:int|None,current_id:int|None=Non
         parent_id=parent.parent_id
 
 @app.get("/api/folders")
-def api_folders(db:Session=Depends(get_db)):
-    return [folder_json(x,db) for x in db.scalars(select(EquipmentFolder).order_by(EquipmentFolder.name)).all()]
+def api_folders(request:Request,db:Session=Depends(get_db)):
+    user=getattr(request.state,"user",None);allowed=visible_folder_ids(db,user)
+    if allowed==set():return []
+    stmt=select(EquipmentFolder).order_by(EquipmentFolder.name)
+    if allowed is not None:stmt=stmt.where(EquipmentFolder.id.in_(allowed))
+    folders=db.scalars(stmt).all()
+    result=[]
+    for folder in folders:
+        item=folder_json(folder,db)
+        if allowed is not None and folder.parent_id not in allowed:item["parent_id"]=None
+        result.append(item)
+    return result
 
 @app.post("/api/folders",status_code=201)
 async def api_create_folder(request:Request,db:Session=Depends(get_db)):
@@ -316,7 +391,7 @@ async def api_delete_folder(folder_id:int,request:Request,db:Session=Depends(get
         for child in db.scalars(select(EquipmentFolder).where(EquipmentFolder.parent_id==folder_id)).all():
             validate_folder_parent(db,target_id,child.id); child.parent_id=target_id
         for device in db.scalars(select(Device).where(Device.folder_id==folder_id)).all(): device.folder_id=target_id
-        db.delete(folder); db.commit()
+        db.execute(delete(UserFolderAccess).where(UserFolderAccess.folder_id==folder_id));db.delete(folder); db.commit()
     except Exception: db.rollback(); raise
     return {"ok":True}
 
@@ -353,7 +428,9 @@ async def api_add_model(vendor_id:int,request:Request,db:Session=Depends(get_db)
     if source_id and not db.get(FirmwareSource,int(source_id)): return JSONResponse(status_code=422,content={"errors":{"firmware_source_id":"Источник не найден"}})
     method=str(data.get("installed_version_method","manual"))
     if method not in {"manual","snmp"}: return JSONResponse(status_code=422,content={"errors":{"installed_version_method":"Выберите способ получения версии"}})
-    model=EquipmentModel(vendor_id=vendor_id,name=name,normalized_name=name.upper(),enabled=True,snmp_profile=None,device_type=str(data.get("device_type","")).strip() or None,firmware_source_id=int(source_id) if source_id else None,installed_version_method=method,version_oid=str(data.get("version_oid","")).strip() or None,latest_check_status="Источник не настроен" if not source_id else "Не проверялся"); db.add(model)
+    try:version_oid,version_pattern=validate_version_settings(data.get("version_oid"),data.get("installed_version_pattern"))
+    except ValueError as exc:return JSONResponse(status_code=422,content={"errors":{"version_oid":str(exc)}})
+    model=EquipmentModel(vendor_id=vendor_id,name=name,normalized_name=name.upper(),enabled=True,snmp_profile=None,device_type=str(data.get("device_type","")).strip() or None,firmware_source_id=int(source_id) if source_id else None,installed_version_method=method,version_oid=version_oid,installed_version_pattern=version_pattern,latest_check_status="Источник не настроен" if not source_id else "Не проверялся"); db.add(model)
     try: db.commit()
     except IntegrityError: db.rollback(); return JSONResponse(status_code=422,content={"errors":{"name":"Такая модель уже существует"}})
     db.refresh(model); return model_json(model)
@@ -367,6 +444,9 @@ async def api_update_model(model_id:int,request:Request,db:Session=Depends(get_d
         if not name: return JSONResponse(status_code=422,content={"errors":{"name":"Укажите название модели"}})
         model.name=name; model.normalized_name=name.upper()
     if "enabled" in data: model.enabled=bool(data["enabled"])
+    if "version_oid" in data or "installed_version_pattern" in data:
+        try:model.version_oid,model.installed_version_pattern=validate_version_settings(data.get("version_oid",model.version_oid),data.get("installed_version_pattern",model.installed_version_pattern))
+        except ValueError as exc:return JSONResponse(status_code=422,content={"errors":{"version_oid":str(exc)}})
     try: db.commit()
     except IntegrityError: db.rollback(); return JSONResponse(status_code=422,content={"errors":{"name":"Такая модель уже существует"}})
     db.refresh(model); return model_json(model)
@@ -468,6 +548,7 @@ def delete_device(device_id:int,request:Request,csrf:str=Form(...),db:Session=De
 async def run_check(device_id:int,request:Request,csrf:str=Form(...),db:Session=Depends(get_db)):
     verify(request,csrf); device=db.get(Device,device_id)
     if not device: raise HTTPException(404)
+    if device.installed_version_source=="snmp": await poll_installed_version(db,device)
     if not device.catalog_model_id: device.status="Источник не настроен"; db.commit()
     else: await check_model_source(db,device.catalog_model)
     return RedirectResponse("/",303)
@@ -476,11 +557,27 @@ async def run_check(device_id:int,request:Request,csrf:str=Form(...),db:Session=
 async def connection(device_id:int,request:Request,csrf:str=Form(...),db:Session=Depends(get_db)):
     verify(request,csrf); device=db.get(Device,device_id)
     if not device: raise HTTPException(404)
-    ok,message=await test_connection(device); return page(request,"message.html",title="Проверка подключения",message=message,ok=ok)
+    ok,message=await test_connection(device)
+    if not ok:
+        mailer.queue_notification(
+            "device_error",
+            f"Firmware Monitor — ошибка устройства {device.name}",
+            "Firmware Monitor не смог проверить подключение устройства.\n\n"
+            f"Устройство: {device.name}\n"
+            f"IP-адрес: {device.ip_address}\n"
+            f"Производитель: {device.vendor}\n"
+            f"Модель: {device.model}\n"
+            f"Результат проверки: {message}\n"
+            f"Время: {now().strftime('%d.%m.%Y %H:%M')}\n\n"
+            "Проверьте доступность устройства и параметры подключения.",
+        )
+    return page(request,"message.html",title="Проверка подключения",message=message,ok=ok)
 
 @app.post("/check-all")
 async def check_all(request:Request,csrf:str=Form(...),db:Session=Depends(get_db)):
     verify(request,csrf)
+    if not db.scalar(select(Device.id).limit(1)):
+        return JSONResponse(status_code=409,content={"error":"Нет устройств для проверки"})
     for model_id in set(db.scalars(select(Device.catalog_model_id).where(Device.catalog_model_id.is_not(None))).all()):
         model=db.get(EquipmentModel,model_id)
         if model: await check_model_source(db,model)
@@ -488,7 +585,10 @@ async def check_all(request:Request,csrf:str=Form(...),db:Session=Depends(get_db
 
 @app.get("/history",response_class=HTMLResponse)
 def history(request:Request,db:Session=Depends(get_db)):
-    return page(request,"history.html",rows=db.execute(select(CheckHistory,Device).join(Device).order_by(CheckHistory.checked_at.desc()).limit(500)).all())
+    stmt=select(CheckHistory,Device).join(Device)
+    folder_ids=visible_folder_ids(db,getattr(request.state,"user",None))
+    if folder_ids is not None:stmt=stmt.where(Device.folder_id.in_(folder_ids)) if folder_ids else stmt.where(False)
+    return page(request,"history.html",rows=db.execute(stmt.order_by(CheckHistory.checked_at.desc()).limit(500)).all())
 
 @app.get("/settings",response_class=HTMLResponse)
 def settings_page(request:Request,tab:str="connections",db:Session=Depends(get_db)):
@@ -496,7 +596,28 @@ def settings_page(request:Request,tab:str="connections",db:Session=Depends(get_d
     profiles=db.scalars(select(ConnectionProfile).order_by(ConnectionProfile.name)).all(); sources=db.scalars(select(FirmwareSource).order_by(FirmwareSource.vendor)).all(); models=db.scalars(select(EquipmentModel).order_by(EquipmentModel.name)).all(); vendors=db.scalars(select(EquipmentVendor).order_by(EquipmentVendor.name)).all()
     profile_usage={p.id:db.scalar(select(func.count(Device.id)).where(Device.profile_id==p.id)) or 0 for p in profiles}
     auto_enabled,auto_time=automation_config(db)
-    return page(request,"profiles.html",tab=tab,profiles=profiles,profile_usage=profile_usage,sources=sources,models=models,vendors=vendors,automation_enabled=auto_enabled,automation_time=auto_time)
+    return page(request,"profiles.html",tab=tab,profiles=profiles,profile_usage=profile_usage,sources=sources,models=models,vendors=vendors,automation_enabled=auto_enabled,automation_time=auto_time,source_status_view=source_status_view,smtp_config=mailer.public_smtp_config(db))
+
+@app.get("/api/settings/smtp")
+def api_get_smtp_settings(db:Session=Depends(get_db)):
+    return mailer.public_smtp_config(db)
+
+@app.post("/api/settings/smtp")
+async def api_save_smtp_settings(request:Request,db:Session=Depends(get_db)):
+    data=await request.json();verify(request,data.get("csrf"))
+    try:result=mailer.save_smtp_config(db,data)
+    except ValueError as exc:return JSONResponse(status_code=422,content={"error":str(exc)})
+    except RuntimeError:return JSONResponse(status_code=503,content={"error":"Шифрование секретов не настроено"})
+    return {"ok":True,"message":"Настройки почты сохранены","settings":result}
+
+@app.post("/api/settings/smtp/test")
+async def api_test_smtp_settings(request:Request):
+    data=await request.json();verify(request,data.get("csrf"))
+    try:await asyncio.to_thread(mailer.send_test_email_from_store)
+    except ValueError as exc:return JSONResponse(status_code=422,content={"error":str(exc)})
+    except mailer.MailDeliveryError as exc:return JSONResponse(status_code=502,content={"error":str(exc)})
+    except RuntimeError:return JSONResponse(status_code=503,content={"error":"Настройка почты недоступна"})
+    return {"ok":True,"message":"Тестовое письмо отправлено"}
 
 @app.post("/api/settings/automation")
 async def api_save_automation(request:Request,db:Session=Depends(get_db)):
@@ -520,8 +641,41 @@ async def api_save_automation(request:Request,db:Session=Depends(get_db)):
 def profiles(request:Request): return RedirectResponse("/settings?tab=connections",307)
 
 @app.post("/profiles")
-def add_profile(request:Request,csrf:str=Form(...),name:str=Form(...),method:str=Form("snmp"),username:str=Form(""),secret:str=Form(...),snmp_version:str=Form("2c"),port:str=Form("161"),timeout_seconds:int=Form(5),retries:int=Form(1),db:Session=Depends(get_db)):
-    verify(request,csrf); db.add(ConnectionProfile(name=name,method="snmp",username=username or None if snmp_version=="3" else None,secret_encrypted=encrypt_secret(secret),snmp_version=snmp_version,port=int(port),timeout_seconds=timeout_seconds,retries=retries)); db.commit(); return RedirectResponse("/settings?tab=connections",303)
+def add_profile(request:Request,csrf:str=Form(...),name:str=Form(...),username:str=Form(""),secret:str=Form(""),snmp_version:str=Form("2c"),port:str=Form("161"),timeout_seconds:int=Form(5),retries:int=Form(1),db:Session=Depends(get_db)):
+    verify(request,csrf)
+    profile=ConnectionProfile()
+    try:apply_profile_data(profile,{"name":name,"username":username,"community":secret,"snmp_version":snmp_version,"port":port,"timeout_seconds":timeout_seconds,"retries":retries})
+    except ValueError as exc:return JSONResponse(status_code=422,content={"error":str(exc)})
+    db.add(profile)
+    try:db.commit()
+    except IntegrityError:db.rollback();return JSONResponse(status_code=409,content={"error":"Профиль с таким названием уже существует"})
+    return RedirectResponse("/settings?tab=connections",303)
+
+@app.get("/api/connection-profiles")
+def api_connection_profiles(db:Session=Depends(get_db)):
+    return [profile_payload(profile) for profile in db.scalars(select(ConnectionProfile).order_by(ConnectionProfile.name)).all()]
+
+@app.post("/api/connection-profiles",status_code=201)
+async def api_create_connection_profile(request:Request,db:Session=Depends(get_db)):
+    data=await request.json();verify(request,data.get("csrf"));profile=ConnectionProfile()
+    try:apply_profile_data(profile,data)
+    except ValueError as exc:return JSONResponse(status_code=422,content={"error":str(exc)})
+    except RuntimeError:return JSONResponse(status_code=503,content={"error":"Шифрование секретов не настроено"})
+    db.add(profile)
+    try:db.commit()
+    except IntegrityError:db.rollback();return JSONResponse(status_code=409,content={"error":"Профиль с таким названием уже существует"})
+    db.refresh(profile);return profile_payload(profile)
+
+@app.patch("/api/connection-profiles/{profile_id}")
+async def api_update_connection_profile(profile_id:int,request:Request,db:Session=Depends(get_db)):
+    data=await request.json();verify(request,data.get("csrf"));profile=db.get(ConnectionProfile,profile_id)
+    if not profile:raise HTTPException(404,"Профиль подключения не найден")
+    try:apply_profile_data(profile,data)
+    except ValueError as exc:return JSONResponse(status_code=422,content={"error":str(exc)})
+    except RuntimeError:return JSONResponse(status_code=503,content={"error":"Шифрование секретов не настроено"})
+    try:db.commit()
+    except IntegrityError:db.rollback();return JSONResponse(status_code=409,content={"error":"Профиль с таким названием уже существует"})
+    db.refresh(profile);return profile_payload(profile)
 
 @app.delete("/api/connection-profiles/{profile_id}")
 async def api_delete_connection_profile(profile_id:int,request:Request,db:Session=Depends(get_db)):
@@ -531,19 +685,11 @@ async def api_delete_connection_profile(profile_id:int,request:Request,db:Sessio
     if used:return JSONResponse(status_code=409,content={"error":f"Невозможно удалить профиль: он используется устройствами — {used}. Сначала назначьте им другой профиль."})
     db.delete(profile);db.commit();return {"ok":True,"message":"Профиль подключения удалён"}
 
-@app.get("/notifications",response_class=HTMLResponse)
-def notifications(request:Request,kind:str="all",db:Session=Depends(get_db)):
-    allowed={"all","updates","errors","system"};kind=kind if kind in allowed else "all"
-    monitored_models=select(Device.catalog_model_id).where(Device.catalog_model_id.is_not(None))
-    stmt=select(FirmwareEvent).where(FirmwareEvent.model_id.in_(monitored_models)).order_by(FirmwareEvent.created_at.desc(),FirmwareEvent.id.desc())
-    if kind!="all":stmt=stmt.where(FirmwareEvent.category==kind)
-    events=db.scalars(stmt.limit(500)).all();model_ids={e.model_id for e in events}
-    models={m.id:m for m in db.scalars(select(EquipmentModel).where(EquipmentModel.id.in_(model_ids))).all()} if model_ids else {}
-    devices={mid:db.scalar(select(Device).where(Device.catalog_model_id==mid).order_by(Device.name)) for mid in model_ids}
-    total_events=db.scalar(select(func.count(FirmwareEvent.id)).where(FirmwareEvent.model_id.in_(monitored_models))) or 0
-    unread=db.scalar(select(func.count(FirmwareEvent.id)).where(FirmwareEvent.read_at.is_(None),FirmwareEvent.model_id.in_(monitored_models))) or 0
-    read_events=total_events-unread
-    return page(request,"message.html",events=events,models=models,devices=devices,kind=kind,unread=unread,total_events=total_events,read_events=read_events)
+@app.get("/notifications")
+def notifications(request:Request):
+    user=getattr(request.state,"user",None)
+    target="/settings?tab=notifications" if user is None or user.role=="admin" else "/"
+    return RedirectResponse(target,status_code=303)
 
 @app.post("/api/notifications/read-all")
 async def notifications_read_all(request:Request,db:Session=Depends(get_db)):
@@ -567,10 +713,10 @@ async def notification_delete(event_id:int,request:Request,db:Session=Depends(ge
 
 @app.get("/users",response_class=HTMLResponse)
 def users_page(request:Request,db:Session=Depends(get_db)):
-    return page(request,"users.html",title="Пользователи",users=db.scalars(select(User).order_by(User.username)).all(),active_admins=active_admin_count(db))
+    return page(request,"users.html",title="Пользователи",users=db.scalars(select(User).order_by(User.username)).all(),folders=db.scalars(select(EquipmentFolder).order_by(EquipmentFolder.name)).all(),user_folder_ids={user.id:set(db.scalars(select(UserFolderAccess.folder_id).where(UserFolderAccess.user_id==user.id)).all()) for user in db.scalars(select(User)).all()},active_admins=active_admin_count(db),is_system_admin=is_system_admin)
 
-def user_payload(user:User):
-    return {"id":user.id,"username":user.username,"display_name":user.display_name,"role":user.role,"active":user.active,"last_login_at":user.last_login_at.isoformat() if user.last_login_at else None}
+def user_payload(user:User,db:Session):
+    return {"id":user.id,"username":user.username,"display_name":user.display_name,"role":user.role,"active":user.active,"folder_ids":sorted(db.scalars(select(UserFolderAccess.folder_id).where(UserFolderAccess.user_id==user.id)).all()),"last_login_at":user.last_login_at.isoformat() if user.last_login_at else None}
 
 @app.post("/api/users",status_code=201)
 async def create_user(request:Request,db:Session=Depends(get_db)):
@@ -581,9 +727,11 @@ async def create_user(request:Request,db:Session=Depends(get_db)):
     if db.scalar(select(User).where(User.username==username)):errors["username"]="Такой логин уже используется"
     try:password_hash=hash_password(password)
     except ValueError as exc:errors["password"]=str(exc);password_hash=""
+    try:folder_ids=normalize_folder_ids(db,data.get("folder_ids",[]))
+    except ValueError as exc:errors["folder_ids"]=str(exc);folder_ids=set()
     if errors:return JSONResponse({"errors":errors},422)
     must_change_password=bool(data.get("must_change_password",False))
-    user=User(username=username,display_name=display_name,password_hash=password_hash,role=role,active=True,must_change_password=must_change_password);db.add(user);audit(db,request.state.user,"user.create",username,f"role={role}; must_change_password={must_change_password}");db.commit();db.refresh(user);return user_payload(user)
+    user=User(username=username,display_name=display_name,password_hash=password_hash,role=role,active=True,must_change_password=must_change_password);db.add(user);db.flush();replace_user_folders(db,user,folder_ids);audit(db,request.state.user,"user.create",username,f"role={role}; folders={sorted(folder_ids)}; must_change_password={must_change_password}");db.commit();db.refresh(user);return user_payload(user,db)
 
 @app.patch("/api/users/{user_id}")
 async def update_user(user_id:int,request:Request,db:Session=Depends(get_db)):
@@ -591,16 +739,18 @@ async def update_user(user_id:int,request:Request,db:Session=Depends(get_db)):
     if not user:raise HTTPException(404,"Пользователь не найден")
     role=data.get("role",user.role);active=bool(data.get("active",user.active))
     if role not in {"admin","viewer"}:return JSONResponse({"error":"Некорректная роль"},422)
-    if user.role=="admin" and role!="admin":return JSONResponse({"error":"Роль администратора нельзя изменить"},409)
-    if user.role=="admin" and user.active and (role!="admin" or not active) and active_admin_count(db)<=1:return JSONResponse({"error":"Нельзя заблокировать или понизить последнего активного администратора"},409)
+    if is_system_admin(user) and role!="admin":return JSONResponse({"error":"Роль системной учётной записи admin нельзя изменить"},409)
+    if user.role=="admin" and user.active and (role!="admin" or not active) and active_admin_count(db)<=1:return JSONResponse({"error":"В системе должен остаться хотя бы один активный администратор"},409)
     if user.id==request.state.user.id and not active:return JSONResponse({"error":"Нельзя заблокировать собственную учётную запись"},409)
-    user.role=role;user.active=active
+    try:folder_ids=normalize_folder_ids(db,data.get("folder_ids")) if "folder_ids" in data else set(db.scalars(select(UserFolderAccess.folder_id).where(UserFolderAccess.user_id==user.id)).all())
+    except ValueError as exc:return JSONResponse({"error":str(exc)},422)
+    user.role=role;user.active=active;replace_user_folders(db,user,folder_ids)
     if "display_name" in data:
         name=str(data["display_name"]).strip()
         if not name:return JSONResponse({"error":"Имя не может быть пустым"},422)
         user.display_name=name[:120]
     db.query(UserSession).filter(UserSession.user_id==user.id,UserSession.revoked_at.is_(None)).update({UserSession.revoked_at:now()})
-    audit(db,request.state.user,"user.update",user.username,f"role={role}; active={active}");db.commit();db.refresh(user);return user_payload(user)
+    audit(db,request.state.user,"user.update",user.username,f"role={role}; active={active}; folders={sorted(folder_ids)}");db.commit();db.refresh(user);return user_payload(user,db)
 
 @app.post("/api/users/{user_id}/reset-password")
 async def reset_user_password(user_id:int,request:Request,db:Session=Depends(get_db)):
@@ -615,6 +765,6 @@ async def reset_user_password(user_id:int,request:Request,db:Session=Depends(get
 async def delete_user(user_id:int,request:Request,db:Session=Depends(get_db)):
     data=await request.json();verify(request,data.get("csrf"));user=db.get(User,user_id)
     if not user:raise HTTPException(404,"Пользователь не найден")
-    if user.id==request.state.user.id:return JSONResponse({"error":"Нельзя удалить собственную учётную запись"},409)
-    if user.role=="admin" and user.active and active_admin_count(db)<=1:return JSONResponse({"error":"Нельзя удалить последнего активного администратора"},409)
+    if user.id==request.state.user.id:return JSONResponse({"error":"Нельзя удалить текущую учётную запись"},409)
+    if user.role=="admin" and user.active and active_admin_count(db)<=1:return JSONResponse({"error":"В системе должен остаться хотя бы один активный администратор"},409)
     username=user.username;db.delete(user);audit(db,request.state.user,"user.delete",username);db.commit();return {"ok":True}

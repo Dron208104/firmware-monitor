@@ -7,6 +7,13 @@ def _fernet():
     if not settings.encryption_key:
         raise RuntimeError("ENCRYPTION_KEY не настроен")
     return Fernet(settings.encryption_key.encode())
+def validate_encryption_configuration() -> None:
+    if not settings.encryption_key or settings.encryption_key == "replace-with-generated-fernet-key":
+        raise RuntimeError("ENCRYPTION_KEY не настроен")
+    try:
+        Fernet(settings.encryption_key.encode())
+    except (ValueError, TypeError) as exc:
+        raise RuntimeError("ENCRYPTION_KEY имеет некорректный формат") from exc
 def encrypt_secret(value: str) -> str: return _fernet().encrypt(value.encode()).decode()
 def decrypt_secret(value: str) -> str: return _fernet().decrypt(value.encode()).decode()
 def csrf_token() -> str: return secrets.token_urlsafe(32)

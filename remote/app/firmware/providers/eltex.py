@@ -1,11 +1,10 @@
 from datetime import datetime, timezone
 from time import monotonic
 from urllib.parse import urljoin
-import re, httpx
+import re
 from bs4 import BeautifulSoup
-from ...config import settings
 from ...versioning import normalize_eltex_version
-from .base import FirmwareProvider, FirmwareResult
+from .base import FirmwareProvider, FirmwareResult, fetch_limited
 
 class EltexFirmwareProvider(FirmwareProvider):
     allowed_domains=("eltex-co.ru","eltex-co.com","eltex.ru","api.prod.eltex-co.ru")
@@ -29,16 +28,14 @@ class EltexFirmwareProvider(FirmwareProvider):
         return version,download,notes.get(version),filename
 
     async def fetch(self,vendor,model):
-        url=model.firmware_page_url;self.validate_source(url);start=monotonic();timeout=httpx.Timeout(settings.request_timeout_seconds,connect=min(5,settings.request_timeout_seconds))
+        url=model.firmware_page_url;self.validate_source(url);start=monotonic()
         try:
-            async with httpx.AsyncClient(timeout=timeout,follow_redirects=True,max_redirects=3,headers={"User-Agent":"Firmware Monitor/1.0"}) as client: response=await client.get(url)
-            self.validate_source(str(response.url));response.raise_for_status()
-            if len(response.content)>settings.max_response_bytes:raise ValueError("Ответ официального источника слишком велик")
+            content,response_url,status_code,encoding=await fetch_limited(url,self.validate_source)
         except Exception as exc: raise RuntimeError("Официальный источник Eltex недоступен") from exc
-        found=self.parse(response.text,str(response.url),model.name);checked=datetime.now(timezone.utc);elapsed=int((monotonic()-start)*1000)
-        if not found:return FirmwareResult(vendor.name,model.name,None,None,str(response.url),None,None,None,checked,"Прошивка не найдена",f"Для модели {model.name} прошивка не найдена",source_status="firmware_not_found",http_status=response.status_code,response_time_ms=elapsed)
+        found=self.parse(content.decode(encoding,errors="replace"),response_url,model.name);checked=datetime.now(timezone.utc);elapsed=int((monotonic()-start)*1000)
+        if not found:return FirmwareResult(vendor.name,model.name,None,None,response_url,None,None,None,checked,"Прошивка не найдена",f"Для модели {model.name} прошивка не найдена",source_status="firmware_not_found",http_status=status_code,response_time_ms=elapsed)
         version,download,changelog,filename=found
         if download:self.validate_source(download)
         if changelog:self.validate_source(changelog)
         source_status="ok" if download else "download_page_only";status="Прошивка найдена" if download else "Только страница загрузки"
-        return FirmwareResult(vendor.name,model.name,version,None,str(response.url),download,None,None,checked,status,None if download else "Версия найдена, но ссылка скачивания недоступна",changelog,None,filename,source_status,None,response.status_code,elapsed)
+        return FirmwareResult(vendor.name,model.name,version,None,response_url,download,None,None,checked,status,None if download else "Версия найдена, но ссылка скачивания недоступна",changelog,None,filename,source_status,None,status_code,elapsed)

@@ -36,6 +36,12 @@ class UserSession(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     user: Mapped[User] = relationship(back_populates="sessions")
 
+class UserFolderAccess(Base):
+    __tablename__ = "user_folder_access"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    folder_id: Mapped[int] = mapped_column(ForeignKey("equipment_folders.id", ondelete="CASCADE"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
 class AdminAuditLog(Base):
     __tablename__ = "admin_audit_log"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -53,6 +59,9 @@ class ConnectionProfile(Base):
     username: Mapped[str | None] = mapped_column(String(120), nullable=True)
     secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     snmp_version: Mapped[str] = mapped_column(String(10), default="2c")
+    security_level: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    auth_protocol: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    privacy_protocol: Mapped[str | None] = mapped_column(String(20), nullable=True)
     port: Mapped[int | None] = mapped_column(Integer, nullable=True)
     timeout_seconds: Mapped[int] = mapped_column(Integer, default=5)
     retries: Mapped[int] = mapped_column(Integer, default=1)
@@ -188,6 +197,8 @@ class FirmwareEvent(Base):
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     dedupe_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     severity: Mapped[str] = mapped_column(String(20), default="info", server_default="info")
+    email_reminders_sent: Mapped[int] = mapped_column(default=0, server_default="0")
+    last_email_reminder_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 class EquipmentFolder(Base):
     __tablename__ = "equipment_folders"

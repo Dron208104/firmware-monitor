@@ -7,12 +7,12 @@ from app.auth import SESSION_COOKIE, hash_password, token_hash, utcnow
 from app.config import settings
 from app.db import Base, SessionLocal, engine
 from app.main import app
-from app.models import AdminAuditLog, User, UserSession
+from app.models import AdminAuditLog, Device, EquipmentFolder, User, UserFolderAccess, UserSession
 
 def clean_auth():
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
-        db.execute(delete(AdminAuditLog));db.execute(delete(UserSession));db.execute(delete(User));db.commit()
+        db.execute(delete(AdminAuditLog));db.execute(delete(UserSession));db.execute(delete(UserFolderAccess));db.execute(delete(User));db.commit()
 
 def add_user(username="admin",role="admin",active=True,password="SecurePassword123!"):
     with SessionLocal() as db:
@@ -36,8 +36,11 @@ def test_viewer_is_read_only_and_cannot_open_settings(monkeypatch):
     with TestClient(app) as client:
         login(client,"viewer")
         assert client.get("/").status_code==200
-        assert client.get("/notifications").status_code==200
+        response=client.get("/notifications",follow_redirects=False)
+        assert response.status_code==303 and response.headers["location"]=="/"
         assert client.get("/settings").status_code==403
+        assert client.get("/docs").status_code==403
+        assert client.get("/openapi.json").status_code==403
         assert client.post("/check-all",data={"csrf":client.cookies["csrf"]}).status_code==403
         assert client.post("/api/folders",json={"csrf":client.cookies["csrf"],"name":"Запрещено"}).status_code==403
 
@@ -80,21 +83,48 @@ def test_last_active_admin_cannot_be_disabled(monkeypatch):
     with TestClient(app) as client:
         login(client);csrf=client.cookies["csrf"]
         response=client.patch(f"/api/users/{admin_id}",json={"csrf":csrf,"active":False})
-        assert response.status_code==409 and "последнего" in response.json()["error"]
+        assert response.status_code==409 and "хотя бы один активный администратор" in response.json()["error"]
 
-def test_admin_role_cannot_be_changed_even_when_another_admin_exists(monkeypatch):
-    clean_auth();admin_id=add_user();add_user("second-admin","admin");monkeypatch.setattr(settings,"auth_disabled",False)
+def test_only_system_admin_role_is_locked(monkeypatch):
+    clean_auth();admin_id=add_user();second_id=add_user("second-admin","admin");monkeypatch.setattr(settings,"auth_disabled",False)
     with TestClient(app) as client:
         login(client);csrf=client.cookies["csrf"]
         response=client.patch(f"/api/users/{admin_id}",json={"csrf":csrf,"role":"viewer"})
-        assert response.status_code==409 and response.json()["error"]=="Роль администратора нельзя изменить"
-        with SessionLocal() as db:assert db.get(User,admin_id).role=="admin"
+        assert response.status_code==409 and "admin" in response.json()["error"]
+        changed=client.patch(f"/api/users/{second_id}",json={"csrf":csrf,"role":"viewer"})
+        assert changed.status_code==200 and changed.json()["role"]=="viewer"
+        with SessionLocal() as db:assert db.get(User,admin_id).role=="admin" and db.get(User,second_id).role=="viewer"
 
-def test_admin_role_selector_is_disabled_in_ui():
+def test_only_system_admin_role_selector_is_static_in_ui():
     html=(Path(__file__).parents[1]/"app"/"templates"/"users.html").read_text(encoding="utf-8")
-    assert "Роль администратора нельзя изменить" in html
-    assert "if user.role=='admin'" in html and 'class="user-role-static"' in html
+    assert "Роль системной учётной записи admin нельзя изменить" in html
+    assert "is_system_admin(user)" in html and 'class="user-role-static"' in html
     assert "if(role)role.onchange" in (Path(__file__).parents[1]/"app"/"static"/"users.js").read_text(encoding="utf-8")
+
+def test_viewer_sees_only_assigned_folder_subtrees(monkeypatch):
+    clean_auth();add_user();viewer_id=add_user("observer","viewer");monkeypatch.setattr(settings,"auth_disabled",False)
+    with SessionLocal() as db:
+        allowed=EquipmentFolder(name="Разрешённый");hidden=EquipmentFolder(name="Скрытый");db.add_all([allowed,hidden]);db.flush()
+        child=EquipmentFolder(name="Дочерний",parent_id=allowed.id);db.add(child);db.flush()
+        db.add_all([Device(name="Visible",ip_address="192.0.2.1",vendor="X",model="A",folder_id=allowed.id),Device(name="Child",ip_address="192.0.2.2",vendor="X",model="B",folder_id=child.id),Device(name="Hidden",ip_address="192.0.2.3",vendor="X",model="C",folder_id=hidden.id)])
+        db.add(UserFolderAccess(user_id=viewer_id,folder_id=allowed.id));db.commit();allowed_id=allowed.id;child_id=child.id
+    with TestClient(app) as client:
+        login(client,"observer");devices=client.get("/api/devices").json();folders=client.get("/api/folders").json();page=client.get("/").text
+        assert {item["name"] for item in devices}=={"Visible","Child"}
+        assert {item["id"] for item in folders}=={allowed_id,child_id}
+        assert "Hidden" not in page and "Visible" in page
+
+def test_admin_can_assign_viewer_folders(monkeypatch):
+    clean_auth();add_user();monkeypatch.setattr(settings,"auth_disabled",False)
+    with SessionLocal() as db:
+        folder=EquipmentFolder(name="Офис");db.add(folder);db.commit();db.refresh(folder);folder_id=folder.id
+    with TestClient(app) as client:
+        login(client);csrf=client.cookies["csrf"]
+        created=client.post("/api/users",json={"csrf":csrf,"username":"limited","display_name":"Limited","role":"viewer","password":"Password88","folder_ids":[folder_id]})
+        assert created.status_code==201 and created.json()["folder_ids"]==[folder_id]
+        user_id=created.json()["id"]
+        cleared=client.patch(f"/api/users/{user_id}",json={"csrf":csrf,"folder_ids":[]})
+        assert cleared.status_code==200 and cleared.json()["folder_ids"]==[]
 
 def test_protected_user_delete_buttons_are_disabled_in_ui():
     html=(Path(__file__).parents[1]/"app"/"templates"/"users.html").read_text(encoding="utf-8")
@@ -102,7 +132,7 @@ def test_protected_user_delete_buttons_are_disabled_in_ui():
     assert "user.id==current_user.id" in html
     assert "active_admins<=1" in html
     assert "Нельзя удалить текущую учётную запись" in html
-    assert "В системе должен остаться хотя бы один администратор" in html
+    assert "В системе должен остаться хотя бы один активный администратор" in html
     assert ".user-actions button:disabled" in css and "cursor:not-allowed" in css
 
 def test_passwords_are_argon2_and_not_returned(monkeypatch):
@@ -118,11 +148,21 @@ def test_password_change_uses_application_dialog_not_browser_prompt():
     root=Path(__file__).parents[1]
     html=(root/"app"/"templates"/"users.html").read_text(encoding="utf-8")
     js=(root/"app"/"static"/"users.js").read_text(encoding="utf-8")
-    assert 'class="user-dialog password-dialog"' in html
+    assert 'class="user-dialog app-dialog password-dialog"' in html
     assert 'name="confirmation"' in html
     assert "password!==confirmation" in js
     assert "prompt(" not in js
     assert 'minlength="8"' in html and "password.length<8" in js
+
+
+def test_all_user_dialogs_share_application_style_and_no_browser_confirm():
+    with TestClient(app) as client:
+        html=client.get("/users").text
+    js=Path(__file__).parents[1].joinpath("app/static/users.js").read_text(encoding="utf-8")
+    assert html.count('user-dialog app-dialog')==3
+    assert 'УЧЁТНАЯ ЗАПИСЬ' in html and 'ПРАВА ДОСТУПА' in html
+    assert "FirmwareDialog.confirm" in js
+    assert "confirm('" not in js
 
 def test_password_minimum_is_eight_characters():
     import pytest

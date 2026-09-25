@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from time import monotonic
 from urllib.parse import unquote, urljoin, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 import asyncio
 import ssl
 import time
@@ -16,6 +16,13 @@ from .base import FirmwareProvider, FirmwareResult
 
 class DlinkFirmwareProvider(FirmwareProvider):
     allowed_domains=("dlink.com","support.dlink.com","dlink.ru","support.d-link.ru","ftp.dlink.ru")
+
+    class _SafeRedirectHandler(HTTPRedirectHandler):
+        def __init__(self,validate):super().__init__();self.validate=validate;self.redirects=0
+        def redirect_request(self,req,fp,code,msg,headers,newurl):
+            if self.redirects>=3:raise ValueError("Слишком много перенаправлений")
+            self.validate(newurl);self.redirects+=1
+            return super().redirect_request(req,fp,code,msg,headers,newurl)
 
     @staticmethod
     def _directory(html:str,url:str,name:str):
@@ -60,10 +67,11 @@ class DlinkFirmwareProvider(FirmwareProvider):
         # Keep certificate and hostname verification enabled while lowering
         # only the OpenSSL cipher security level for this allowlisted host.
         context.set_ciphers("DEFAULT:@SECLEVEL=1")
+        opener=build_opener(HTTPSHandler(context=context),self._SafeRedirectHandler(self.validate_source))
         last_error=None
         for attempt in range(3):
             try:
-                with urlopen(request,timeout=settings.request_timeout_seconds,context=context) as response:
+                with opener.open(request,timeout=settings.request_timeout_seconds) as response:
                     final_url=response.geturl();self.validate_source(final_url)
                     content=response.read(settings.max_response_bytes+1)
                     if len(content)>settings.max_response_bytes:raise ValueError("Ответ официального источника слишком велик")

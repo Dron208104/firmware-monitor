@@ -49,10 +49,10 @@ MODEL_COLUMNS = {
     "latest_version_pattern": "TEXT",
     "version_comparator": "VARCHAR(40) NOT NULL DEFAULT 'numeric'",
 }
-PROFILE_COLUMNS={"timeout_seconds":"INTEGER NOT NULL DEFAULT 5","retries":"INTEGER NOT NULL DEFAULT 1","enabled":"BOOLEAN NOT NULL DEFAULT 1"}
+PROFILE_COLUMNS={"timeout_seconds":"INTEGER NOT NULL DEFAULT 5","retries":"INTEGER NOT NULL DEFAULT 1","enabled":"BOOLEAN NOT NULL DEFAULT 1","security_level":"VARCHAR(30)","auth_protocol":"VARCHAR(20)","privacy_protocol":"VARCHAR(20)"}
 RELEASE_COLUMNS = {"changelog_url":"TEXT","file_size":"INTEGER","normalized_version":"VARCHAR(120)","release_suffix":"VARCHAR(30)","provider_revision":"VARCHAR(30)"}
 SOURCE_COLUMNS = {"last_success_at":"DATETIME"}
-EVENT_COLUMNS={"device_id":"INTEGER","category":"VARCHAR(30) NOT NULL DEFAULT 'updates'","old_version":"VARCHAR(120)","new_version":"VARCHAR(120)","description":"TEXT","read_at":"DATETIME","dedupe_key":"VARCHAR(255)","severity":"VARCHAR(20) NOT NULL DEFAULT 'info'"}
+EVENT_COLUMNS={"device_id":"INTEGER","category":"VARCHAR(30) NOT NULL DEFAULT 'updates'","old_version":"VARCHAR(120)","new_version":"VARCHAR(120)","description":"TEXT","read_at":"DATETIME","dedupe_key":"VARCHAR(255)","severity":"VARCHAR(20) NOT NULL DEFAULT 'info'","email_reminders_sent":"INTEGER NOT NULL DEFAULT 0","last_email_reminder_at":"DATETIME"}
 
 def migrate_sqlite(engine):
     if engine.dialect.name != "sqlite": return
@@ -93,6 +93,8 @@ def migrate_sqlite(engine):
             connection.execute(text("UPDATE user_sessions SET last_seen_at=CURRENT_TIMESTAMP WHERE last_seen_at IS NULL"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_user_sessions_token_hash ON user_sessions(token_hash)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_user_sessions_user_id ON user_sessions(user_id)"))
+        connection.execute(text("CREATE TABLE IF NOT EXISTS user_folder_access (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,folder_id INTEGER NOT NULL REFERENCES equipment_folders(id) ON DELETE CASCADE,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(user_id,folder_id))"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_user_folder_access_folder_id ON user_folder_access(folder_id)"))
         connection.execute(text("CREATE TABLE IF NOT EXISTS admin_audit_log (id INTEGER PRIMARY KEY,actor_user_id INTEGER REFERENCES users(id),action VARCHAR(80) NOT NULL,target VARCHAR(160) NOT NULL,details TEXT,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_admin_audit_actor ON admin_audit_log(actor_user_id)"))
         connection.execute(text("INSERT OR IGNORE INTO application_settings(key,value) VALUES ('auto_check_enabled','true')"))

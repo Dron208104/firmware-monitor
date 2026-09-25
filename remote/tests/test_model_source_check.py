@@ -23,5 +23,5 @@ def test_model_check_endpoint_and_button(monkeypatch):
         page = client.get("/settings?tab=equipment")
         assert f'data-check-model="{model["id"]}"' in page.text
         assert f"Проверить прошивку для модели {model['name']}" in page.text
-        assert 'title="Открыть источник"' in page.text
-        assert 'title="Проверить модель"' in page.text
+        assert 'data-model-tooltip="Открыть источник"' in page.text
+        assert 'data-model-tooltip="Проверить модель"' in page.text

@@ -1,5 +1,6 @@
 from cryptography.fernet import Fernet
 import os
+from pathlib import Path
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 os.environ.setdefault("SECRET_KEY", "test-secret")
@@ -128,12 +129,15 @@ def test_equipment_cosmetic_navigation_icons_and_counts():
 def test_shared_page_headers_have_consistent_copy():
     with TestClient(app) as client:
         equipment = client.get("/").text
-        notifications = client.get("/notifications").text
         settings = client.get("/profiles").text
         assert 'class="page-header"' in equipment
         assert 'Контроль версий прошивок и состояния сетевых устройств' in equipment
-        assert 'МОНИТОРИНГ' in notifications
-        assert 'События обновления прошивок и результаты проверок' in notifications
         assert 'КОНФИГУРАЦИЯ' in settings
         assert 'Подключения, уведомления и справочник оборудования' in settings
-        assert 'FIRMWARE MONITOR' not in notifications
+
+
+def test_folder_creation_uses_styled_modal_instead_of_browser_prompt():
+    js=(Path(__file__).parents[1]/"app/static/app.js").read_text(encoding="utf-8")
+    assert "openCreateFolder()" in js
+    assert "Новый каталог будет создан" in js
+    assert "prompt('Название нового каталога')" not in js

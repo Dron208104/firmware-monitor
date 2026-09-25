@@ -1,9 +1,8 @@
 import re
 from urllib.parse import urljoin
-import httpx
 from bs4 import BeautifulSoup
-from .config import settings
 from .security import validate_public_url
+from .firmware.providers.base import fetch_limited
 from .checkers.qtech import matches as qtech_matches
 from .checkers.eltex import matches as eltex_matches
 from .checkers.dlink import matches as dlink_matches
@@ -20,22 +19,16 @@ async def latest_firmware(vendor: str, model: str, revision: str | None, url: st
     if not url: raise SourceError("Не задана официальная страница прошивок")
     validate_public_url(url)
     try:
-        async with httpx.AsyncClient(timeout=settings.request_timeout_seconds, follow_redirects=True) as client:
-            async with client.stream("GET", url, headers={"User-Agent": "FirmwareMonitor/1.0"}) as response:
-                response.raise_for_status(); chunks=[]; size=0
-                async for chunk in response.aiter_bytes():
-                    size += len(chunk)
-                    if size > settings.max_response_bytes: raise SourceError("Ответ источника слишком велик")
-                    chunks.append(chunk)
-                html = b"".join(chunks).decode(response.encoding or "utf-8", errors="replace")
+        content,final_url,_,encoding=await fetch_limited(url,validate_public_url)
+        html=content.decode(encoding,errors="replace")
     except SourceError: raise
     except Exception as exc: raise SourceError(f"Источник недоступен: {type(exc).__name__}") from exc
     soup = BeautifulSoup(html, "html.parser")
     haystack = soup.get_text(" ", strip=True)
     candidates = re.findall(r"(?i)(?:firmware|прошивк|software|version|версия)[^\n]{0,80}?\b[vV]?([0-9]+(?:[._-][0-9A-Za-z]+){1,5})", haystack)
-    links = [(a.get_text(" ", strip=True), urljoin(url, a.get("href"))) for a in soup.select("a[href]") if re.search(r"(?i)firmware|прошив|\.bin|\.img|\.zip", a.get_text(" ", strip=True)+a.get("href", ""))]
+    links = [(a.get_text(" ", strip=True), urljoin(final_url, a.get("href"))) for a in soup.select("a[href]") if re.search(r"(?i)firmware|прошив|\.bin|\.img|\.zip", a.get_text(" ", strip=True)+a.get("href", ""))]
     if revision:
         revision_links = [x for x in links if revision.lower() in (x[0]+x[1]).lower()]
         if revision_links: links = revision_links
     if not candidates: raise SourceError("Формат официальной страницы не распознан")
-    return candidates[0], (links[0][1] if links else url)
+    return candidates[0], (links[0][1] if links else final_url)
