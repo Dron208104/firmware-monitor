@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "Firmware Monitor"
-    app_version: str = "1.1.0"
+    app_version: str = "1.1.1"
     database_url: str = "sqlite:////data/firmware-monitor.db"
     secret_key: str = ""
     encryption_key: str = ""

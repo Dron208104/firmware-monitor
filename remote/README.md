@@ -2,7 +2,7 @@
 
 Firmware Monitor — self-hosted система учёта сетевого оборудования и контроля версий прошивок. Она получает установленную версию по SNMP, проверяет официальные источники производителей и уведомляет ответственных сотрудников по электронной почте.
 
-Текущая версия: **1.1.0**.
+Текущая версия: **1.1.1**.
 
 ## Возможности
 
@@ -23,7 +23,7 @@ Firmware Monitor — self-hosted система учёта сетевого об
 ```bash
 git clone https://github.com/Dron208104/firmware-monitor.git
 cd firmware-monitor/remote
-git checkout v1.1.0
+git checkout v1.1.1
 chmod +x scripts/*.sh
 ./scripts/install.sh
 ```
@@ -37,7 +37,7 @@ chmod +x scripts/*.sh
 ```bash
 ./scripts/verify.sh                  # проверить состояние
 ./scripts/backup.sh                  # создать резервную копию
-./scripts/update.sh 1.1.0            # обновить версию
+./scripts/update.sh 1.1.1            # обновить версию
 ./scripts/restore.sh backups/file.db # восстановить базу
 docker compose logs -f app           # посмотреть журнал
 ```

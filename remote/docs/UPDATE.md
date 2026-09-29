@@ -6,7 +6,7 @@
 
 ```bash
 git pull --ff-only
-./scripts/update.sh 1.1.0
+./scripts/update.sh 1.1.1
 ./scripts/verify.sh
 ```
 
