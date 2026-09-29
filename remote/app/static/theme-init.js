@@ -1,5 +1,7 @@
+document.documentElement.dataset.theme = "dark";
+document.documentElement.style.colorScheme = "dark";
 try {
-  document.documentElement.dataset.theme = localStorage.getItem("firmware-theme") || "dark";
+  localStorage.removeItem("firmware-theme");
 } catch (_) {
-  document.documentElement.dataset.theme = "dark";
+  // Local storage can be unavailable in private browsing mode.
 }
