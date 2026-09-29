@@ -1,10 +1,10 @@
 services:
   app:
-    image: ${FIRMWARE_MONITOR_IMAGE:-firmware-monitor:1.0.0}
+    image: ${FIRMWARE_MONITOR_IMAGE:-firmware-monitor:1.1.0}
     build:
       context: .
       args:
-        APP_VERSION: ${APP_VERSION:-1.0.0}
+        APP_VERSION: ${APP_VERSION:-1.1.0}
     init: true
     restart: unless-stopped
     env_file: .env

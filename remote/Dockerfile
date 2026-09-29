@@ -1,5 +1,5 @@
 FROM python:3.13-slim AS runtime
-ARG APP_VERSION=1.0.0
+ARG APP_VERSION=1.1.0
 LABEL org.opencontainers.image.title="Firmware Monitor" \
       org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.description="Мониторинг версий прошивок сетевого оборудования"

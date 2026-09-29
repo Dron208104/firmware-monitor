@@ -5,6 +5,9 @@
 Быстрый запуск:
 
 ```bash
+git clone https://github.com/Dron208104/firmware-monitor.git
+cd firmware-monitor
+git checkout v1.1.0
 cd remote
 chmod +x scripts/*.sh
 ./scripts/install.sh
