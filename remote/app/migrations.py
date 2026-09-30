@@ -211,6 +211,7 @@ def migrate_sqlite(engine):
 
         connection.execute(text("UPDATE equipment_models SET firmware_page_url='https://www.zyxel.com/global/en/support/download?model=gs1900-8',firmware_filename_pattern='GS1900-8.*AAHH',version_pattern='V\\d+\\.\\d+\\(AAHH\\.\\d+\\)C\\d+',download_rule='exact_model_and_firmware_code' WHERE normalized_name='GS1900-8' AND vendor_id=(SELECT id FROM equipment_vendors WHERE slug='zyxel')"))
         connection.execute(text("UPDATE equipment_models SET firmware_filename_pattern='exact_model_or_compatibility_list',version_pattern='\\d+(?:\\.\\d+){2,3}(?: R\\d+)?',download_rule='product_page_compatibility' WHERE vendor_id=(SELECT id FROM equipment_vendors WHERE slug='eltex')"))
+        connection.execute(text("UPDATE equipment_models SET installed_version_method='snmp',version_oid='1.3.6.1.4.1.2076.81.1.3.0',installed_version_pattern=NULL WHERE normalized_name='MES2428P' AND vendor_id=(SELECT id FROM equipment_vendors WHERE slug='eltex')"))
         connection.execute(text("UPDATE equipment_models SET firmware_filename_pattern='exact_model_and_revision',version_pattern='V?\\d+\\.\\d+\\.(?:\\d+|B\\d+)',download_rule='hardware_revision_directory' WHERE vendor_id=(SELECT id FROM equipment_vendors WHERE slug='d-link')"))
 
         dlink_revisions={

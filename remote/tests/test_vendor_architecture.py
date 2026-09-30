@@ -30,6 +30,10 @@ def test_vendor_sources_models_and_revisions_are_idempotent():
             models=db.scalars(select(EquipmentModel).where(EquipmentModel.vendor_id==vendor.id,EquipmentModel.name.in_(names))).all()
             assert {m.name for m in models}==names
             assert all(m.firmware_source_id==sources[vendor_name].id for m in models)
+            if vendor_name=='Eltex':
+                mes2428p=next(m for m in models if m.name=='MES2428P')
+                assert mes2428p.installed_version_method=='snmp'
+                assert mes2428p.version_oid=='1.3.6.1.4.1.2076.81.1.3.0'
         dlink=db.scalar(select(EquipmentVendor).where(EquipmentVendor.slug=='d-link'))
         models={m.name:m for m in db.scalars(select(EquipmentModel).where(EquipmentModel.vendor_id==dlink.id)).all()}
         assert {r.display_revision for r in models['DGS-1100-08V2'].hardware_revisions}=={'A'}
