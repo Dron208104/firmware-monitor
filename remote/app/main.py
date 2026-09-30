@@ -508,6 +508,7 @@ async def api_check_firmware(device_id:int,request:Request,db:Session=Depends(ge
     device=db.get(Device,device_id)
     if not device: raise HTTPException(404,"Устройство не найдено")
     if not device.catalog_model_id: return JSONResponse(status_code=409,content={"error":"Для устройства не выбрана модель из справочника"})
+    if device.installed_version_source=="snmp": await poll_installed_version(db,device)
     await check_model_source(db,device.catalog_model); db.refresh(device)
     return serialize(device,db)
 
