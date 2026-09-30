@@ -21,7 +21,10 @@ def test_qtech_catalog_is_complete_sorted_and_idempotent():
         assert all(not m.model_requires_clarification for m in models if m.name in EXPECTED)
         assert all(m.latest_check_status != "Требуется уточнить модель" for m in models if m.name in EXPECTED)
         assert "numeric-8.x" in next(m for m in models if m.name=="QSW-4530-54TX").parsing_parameters
-        assert '"os12"' in next(m for m in models if m.name=="QSW-4700-52TX").parsing_parameters
+        qsw4700=next(m for m in models if m.name=="QSW-4700-52TX")
+        assert '"os12"' in qsw4700.parsing_parameters
+        assert qsw4700.installed_version_method=="snmp"
+        assert qsw4700.version_oid=="1.3.6.1.4.1.27514.1.1.10.2.1.1.2.0"
 
 def test_catalog_api_exposes_clarification_flag():
     with TestClient(app) as client:

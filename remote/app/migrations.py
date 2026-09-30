@@ -168,6 +168,7 @@ def migrate_sqlite(engine):
         parameters={"vendor":qtech_id,"exact_models":exact_qtech_models}
         connection.execute(model_cleanup,parameters)
         connection.execute(device_cleanup,parameters)
+        connection.execute(text("UPDATE equipment_models SET installed_version_method='snmp',version_oid='1.3.6.1.4.1.27514.1.1.10.2.1.1.2.0',installed_version_pattern=NULL WHERE vendor_id=:vendor AND normalized_name='QSW-4700-52TX'"),{"vendor":qtech_id})
         connection.execute(text("INSERT OR IGNORE INTO equipment_vendors(name,slug,enabled) VALUES ('MikroTik','mikrotik',1)"))
         mikrotik_id=connection.execute(text("SELECT id FROM equipment_vendors WHERE slug='mikrotik'")).scalar_one()
         for model_name in ("RB4011iGS+RM","RB4011iGS+5HacQ2HnD-IN"):
