@@ -1,0 +1,21 @@
+.equipment-layout .table-wrap td[data-column="ip"]{white-space:nowrap;overflow-wrap:normal;word-break:normal}
+.equipment-layout .table-wrap th[data-column],.equipment-layout .table-wrap td[data-column]{width:auto;min-width:0}
+.equipment-layout .table-wrap [data-column="device"]{width:18%}
+.equipment-layout .table-wrap [data-column="ip"]{width:9%}
+.equipment-layout .table-wrap [data-column="connection"]{width:8%;white-space:nowrap}
+.equipment-layout .table-wrap [data-column="vendor"]{width:8%}
+.equipment-layout .table-wrap [data-column="model"]{width:11%}
+.equipment-layout .table-wrap [data-column="installed"],.equipment-layout .table-wrap [data-column="available"]{width:9%;white-space:nowrap}
+.equipment-layout .table-wrap [data-column="status"]{width:12%}
+.equipment-layout .table-wrap [data-column="checked"]{width:9%;white-space:nowrap}
+.equipment-layout .table-wrap [data-column="actions"]{width:112px!important;min-width:112px!important;padding-left:6px;padding-right:10px}
+.equipment-layout .table-wrap [data-column="actions"] .row-actions{display:grid!important;grid-template-columns:30px 30px 30px!important;gap:5px;width:100px!important;min-width:100px!important;justify-content:end}
+.equipment-layout .table-wrap [data-column="actions"] .firmware-download,.equipment-layout .table-wrap [data-column="actions"] .firmware-changelog{width:30px!important;min-width:30px!important;height:30px!important;padding:7px!important}
+.equipment-layout .table-wrap [data-column="actions"] .firmware-download span,.equipment-layout .table-wrap [data-column="actions"] .firmware-changelog span{display:none!important}
+.equipment-layout .table-wrap [data-column="actions"] .action-more{width:30px;min-width:30px}
+.equipment-layout .table-wrap [data-column="device"] .device-copy{display:block;min-width:0;overflow:hidden}
+.equipment-layout .table-wrap [data-column="device"] .device-copy strong{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+.equipment-layout .table-wrap [data-column="device"] .device-comment{display:block;max-width:100%!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;overflow-wrap:normal!important}
+.table-sort{display:flex;width:100%;padding:0;border:0;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;text-align:left;text-transform:inherit;cursor:pointer;white-space:nowrap}
+.table-sort:after{content:'↕';margin-left:5px;color:#555}.table-sort.active:after{content:'↑';color:#ff7a00}.table-sort.active.descending:after{content:'↓'}
+@media(max-width:1450px){.equipment-layout .table-wrap th:nth-child(n),.equipment-layout .table-wrap td:nth-child(n){display:table-cell}.equipment-layout .table-wrap [data-column="vendor"],.equipment-layout .table-wrap [data-column="checked"]{display:none!important}.equipment-layout .table-wrap [data-column="device"]{width:18%}.equipment-layout .table-wrap [data-column="actions"]{width:112px!important;min-width:112px!important}}

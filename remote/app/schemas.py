@@ -22,9 +22,10 @@ class DeviceCreate(BaseModel):
     privacy_password: str | None = None
     installed_version: str | None = Field(default=None, max_length=120)
     folder_id: int | None = None
+    profile_id: int | None = None
     hardware_revision: str | None = Field(default=None, max_length=20)
 
-    @field_validator("folder_id", mode="before")
+    @field_validator("folder_id", "profile_id", mode="before")
     @classmethod
     def empty_folder_is_none(cls, value):
         return None if value == "" else value
@@ -36,6 +37,7 @@ class DeviceOut(BaseModel):
     vendor: str
     model: str
     acquisition_method: str
+    connection_type: str
     version_source: str
     management_port: int
     installed_version: str | None

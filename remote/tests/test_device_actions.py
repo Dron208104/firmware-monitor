@@ -25,7 +25,7 @@ def test_rare_actions_are_in_more_menu_and_narrow_layout_exists():
 
 def test_check_button_has_busy_state():
     assert "button.disabled=true" in JS and "button.disabled=false" in JS
-    assert "Проверяем сайт производителя…" in JS
+    assert "Проверяем версии…" in JS
 
 def test_primary_and_secondary_actions_are_separated():
     assert "device.download_url&&device.status==='Есть обновление'" in JS
@@ -44,20 +44,20 @@ def test_successful_create_reloads_canonical_table_row_and_blocks_duplicates():
     assert "tbody.append(rowFor(result))" not in submit_handler
 
 def test_device_table_supports_name_ip_sorting_and_comments():
-    assert "[['name','Устройство'],['ip','IP-адрес']]" in JS
+    assert "const columns=[['device','Устройство'],['ip','IP-адрес']]" in JS
     assert "const compareIp=" in JS
+    assert "firmware-monitor-device-columns" not in JS
+    assert "draggable=true" not in JS
     assert "device.description||''" in JS
     assert "device-comment" in JS
 
-def test_device_name_and_description_wrap_without_truncation():
+def test_device_name_and_description_have_compact_identity_layout():
     html=(Path(__file__).parents[1]/"app"/"templates"/"dashboard.html").read_text(encoding="utf-8")
     assert '<span class="device-copy"><strong>{{d.name}}</strong>' in html
-    assert '<small class="device-comment">{{d.description}}</small>' in html
+    assert '<small class="device-comment" title="{{d.description}}">{{d.description}}</small>' in html
     assert 'href="/static/device-identity.css?v=1"' in html
     assert "identity.className='device-copy'" in JS
     assert "description.className='device-comment'" in JS
-    assert "white-space: normal" in IDENTITY_CSS
-    assert "overflow-wrap: anywhere" in IDENTITY_CSS
     assert ".table-wrap { overflow-x: hidden; }" in IDENTITY_CSS
     assert "min-width: 0; table-layout: fixed" in IDENTITY_CSS
 

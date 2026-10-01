@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     check_interval_minutes: int = 360
     firmware_check_interval_hours: int = 24
     request_timeout_seconds: float = 15
+    ping_timeout_seconds: int = 3
     max_response_bytes: int = 2_000_000
     max_request_bytes: int = 1_048_576
     session_lifetime_hours: int = 12

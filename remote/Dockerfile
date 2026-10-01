@@ -5,6 +5,7 @@ LABEL org.opencontainers.image.title="Firmware Monitor" \
       org.opencontainers.image.description="Мониторинг версий прошивок сетевого оборудования"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 RUN groupadd --system app && useradd --system --gid app --home /app app
+RUN apt-get update && apt-get install --no-install-recommends -y iputils-ping && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

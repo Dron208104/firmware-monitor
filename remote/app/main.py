@@ -17,11 +17,11 @@ from .db import Base, SessionLocal, engine, get_db
 from .migrations import migrate_sqlite
 from . import mailer
 from .models import ApplicationSetting, CheckHistory, ConnectionProfile, Device, EquipmentFolder, EquipmentModel, EquipmentVendor, FirmwareEvent, FirmwareSource, User, UserFolderAccess, UserSession, now
-from .polling import test_connection
+from .availability import ping_address
 from .schemas import DeviceCreate, DeviceOut
 from .services import poll_installed_version
 from .snmp import validate_version_settings
-from .security import csrf_token, encrypt_secret, validate_encryption_configuration, validate_public_url, validate_firmware_source_url
+from .security import csrf_token, decrypt_secret, encrypt_secret, validate_encryption_configuration, validate_public_url, validate_firmware_source_url
 from .source_status import source_status_view
 from .versioning import compare_for_vendor
 from .firmware.service import check_model_source, latest_release, queue_firmware_reminders
@@ -232,7 +232,8 @@ def serialize(device: Device, db:Session|None=None) -> dict:
     release=latest_release(db,device.catalog_model_id) if db and device.catalog_model_id else None
     model=device.catalog_model
     if model and model.model_requires_clarification: release=None
-    return DeviceOut(id=device.id,name=device.name,address=device.ip_address,vendor=device.vendor,model=device.model,hardware_revision=device.hardware_revision,folder_id=device.folder_id,acquisition_method=device.acquisition_method,version_source=device.installed_version_source,management_port=device.management_port,installed_version=device.installed_version,available_version=release.version if release else None,description=device.description,auto_check=device.auto_check,status=device.status,last_checked_at=device.last_checked_at.isoformat() if device.last_checked_at else None,latest_checked_at=model.latest_checked_at.isoformat() if model and model.latest_checked_at else None,latest_check_status=model.latest_check_status if model else "Источник не настроен",download_url=release.download_url if release else None,firmware_page_url=release.firmware_page_url if release else (model.firmware_page_url if model else None),changelog_url=release.changelog_url if release else None).model_dump()
+    connection_type="Вручную" if device.acquisition_method=="manual" else f"SNMPv{device.profile.snmp_version if device.profile else (device.snmp_version or '2c')}"
+    return DeviceOut(id=device.id,name=device.name,address=device.ip_address,vendor=device.vendor,model=device.model,hardware_revision=device.hardware_revision,folder_id=device.folder_id,acquisition_method=device.acquisition_method,connection_type=connection_type,version_source=device.installed_version_source,management_port=device.management_port,installed_version=device.installed_version,available_version=release.version if release else None,description=device.description,auto_check=device.auto_check,status=device.status,last_checked_at=device.last_checked_at.isoformat() if device.last_checked_at else None,latest_checked_at=model.latest_checked_at.isoformat() if model and model.latest_checked_at else None,latest_check_status=model.latest_check_status if model else "Источник не настроен",download_url=release.download_url if release else None,firmware_page_url=release.firmware_page_url if release else (model.firmware_page_url if model else None),changelog_url=release.changelog_url if release else None).model_dump()
 
 def validate_device(data: DeviceCreate, db: Session) -> tuple[dict[str,str], EquipmentVendor | None, EquipmentModel | None]:
     errors={}
@@ -251,7 +252,9 @@ def validate_device(data: DeviceCreate, db: Session) -> tuple[dict[str,str], Equ
             allowed={value.upper() for revision in model.hardware_revisions if revision.enabled for value in (revision.display_revision,revision.provider_revision)}
             if (data.hardware_revision or "").upper() not in allowed:errors["hardware_revision"]="Выберите аппаратную ревизию из списка для этой модели"
     if data.version_source not in {"snmp","manual"}: errors["version_source"]="Выберите источник установленной версии"
-    if data.version_source=="snmp":
+    profile=db.get(ConnectionProfile,data.profile_id) if data.profile_id else None
+    if data.profile_id and not profile: errors["profile_id"]="Профиль подключения не найден"
+    if data.version_source=="snmp" and not profile:
         if not 1 <= data.snmp_port <= 65535: errors["snmp_port"]="Порт должен быть от 1 до 65535"
         if data.snmp_version not in {"2c","3"}: errors["snmp_version"]="Выберите версию SNMP"
         if data.snmp_version=="2c" and not data.community: errors["community"]="Укажите Community"
@@ -264,7 +267,7 @@ def validate_device(data: DeviceCreate, db: Session) -> tuple[dict[str,str], Equ
             if data.security_level=="authPriv":
                 if not data.privacy_protocol: errors["privacy_protocol"]="Выберите протокол шифрования"
                 if not data.privacy_password: errors["privacy_password"]="Укажите пароль шифрования"
-    else:
+    if data.version_source!="snmp":
         if not (data.installed_version or "").strip(): errors["installed_version"]="Укажите установленную версию"
     if data.folder_id is not None and not db.get(EquipmentFolder,data.folder_id): errors["folder_id"]="Каталог не найден"
     return errors,vendor,model
@@ -478,7 +481,8 @@ def api_create_device(data:DeviceCreate,request:Request,db:Session=Depends(get_d
     if db.scalar(select(Device.id).where(Device.ip_address==data.address.strip())):
         errors["address"]="Устройство с таким IP-адресом уже существует"
     if errors: return JSONResponse(status_code=422,content={"errors":errors})
-    secrets={k:v for k,v in {"community":data.community,"auth_password":data.auth_password,"privacy_password":data.privacy_password}.items() if v} if data.version_source=="snmp" else {}
+    profile=db.get(ConnectionProfile,data.profile_id) if data.profile_id else None
+    secrets={k:v for k,v in {"community":data.community,"auth_password":data.auth_password,"privacy_password":data.privacy_password}.items() if v} if data.version_source=="snmp" and not profile else {}
     try: encrypted=encrypt_secret(json.dumps(secrets)) if secrets else None
     except RuntimeError: return JSONResponse(status_code=503,content={"errors":{"form":"Ключ шифрования ENCRYPTION_KEY не настроен"}})
     vendor_name=vendor.name if vendor else "Другой"; model_name=catalog_model.name if catalog_model else (data.custom_model or "").strip()
@@ -488,7 +492,7 @@ def api_create_device(data:DeviceCreate,request:Request,db:Session=Depends(get_d
     if catalog_model and data.hardware_revision:
         selected=next((r for r in catalog_model.hardware_revisions if data.hardware_revision.upper() in {r.display_revision.upper(),r.provider_revision.upper()}),None)
         revision=selected.display_revision if selected else None
-    device=Device(name=data.name.strip(),ip_address=data.address.strip(),management_port=port,vendor=vendor_name,model=model_name,hardware_revision=revision,catalog_model_id=catalog_model.id if catalog_model else None,folder_id=data.folder_id,acquisition_method="manual" if manual else "snmp",version_source=data.version_source,installed_version_source=data.version_source,snmp_version=None if manual else data.snmp_version,snmp_port=data.snmp_port,snmpv3_username=data.snmpv3_username if not manual and data.snmp_version=="3" else None,security_level=data.security_level if not manual and data.snmp_version=="3" else None,auth_protocol=data.auth_protocol if not manual and data.snmp_version=="3" else None,privacy_protocol=data.privacy_protocol if not manual and data.snmp_version=="3" else None,credentials_encrypted=encrypted,installed_version=installed,available_version=None,description=(data.description or "").strip() or None,auto_check=False if manual or clarification else data.auto_check,status="Требуется уточнить модель" if clarification else "Проверка версии производителя")
+    device=Device(name=data.name.strip(),ip_address=data.address.strip(),management_port=port,vendor=vendor_name,model=model_name,hardware_revision=revision,catalog_model_id=catalog_model.id if catalog_model else None,folder_id=data.folder_id,profile_id=profile.id if profile else None,acquisition_method="manual" if manual else "snmp",version_source=data.version_source,installed_version_source=data.version_source,snmp_version=None if manual or profile else data.snmp_version,snmp_port=data.snmp_port,snmpv3_username=data.snmpv3_username if not manual and not profile and data.snmp_version=="3" else None,security_level=data.security_level if not manual and not profile and data.snmp_version=="3" else None,auth_protocol=data.auth_protocol if not manual and not profile and data.snmp_version=="3" else None,privacy_protocol=data.privacy_protocol if not manual and not profile and data.snmp_version=="3" else None,credentials_encrypted=encrypted,installed_version=installed,available_version=None,description=(data.description or "").strip() or None,auto_check=False if manual or clarification else data.auto_check,status="Требуется уточнить модель" if clarification else "Проверка версии производителя")
     db.add(device)
     try: db.commit()
     except IntegrityError: db.rollback(); return JSONResponse(status_code=422,content={"errors":{"address":"Устройство с таким IP-адресом уже существует"}})
@@ -532,14 +536,47 @@ def device_form(request:Request,device_id:int|None=None,db:Session=Depends(get_d
     device=db.get(Device,device_id) if device_id else None; return page(request,"device_form.html",device=device,profiles=db.scalars(select(ConnectionProfile)).all())
 
 @app.post("/devices/save")
-def save_device(request:Request,csrf:str=Form(...),device_id:str=Form(""),name:str=Form(...),ip_address:str=Form(...),vendor:str=Form(...),model:str=Form(...),hardware_revision:str=Form(""),installed_version:str=Form(""),acquisition_method:str=Form(...),profile_id:str=Form(""),official_url:str=Form(""),description:str=Form(""),auto_check:str|None=Form(None),db:Session=Depends(get_db)):
+def save_device(request:Request,csrf:str=Form(...),device_id:str=Form(""),name:str=Form(...),ip_address:str=Form(...),vendor:str=Form(...),model:str=Form(...),hardware_revision:str=Form(""),installed_version:str=Form(""),acquisition_method:str=Form(...),profile_id:str=Form(""),snmp_version:str=Form("2c"),snmp_port:int=Form(161),community:str=Form(""),snmpv3_username:str=Form(""),security_level:str=Form("noAuthNoPriv"),auth_protocol:str=Form("SHA"),auth_password:str=Form(""),privacy_protocol:str=Form("AES"),privacy_password:str=Form(""),official_url:str=Form(""),description:str=Form(""),auto_check:str|None=Form(None),db:Session=Depends(get_db)):
     verify(request,csrf)
     if not valid_address(ip_address): raise HTTPException(422,"Некорректный IPv4-адрес")
     if official_url:
         try: validate_public_url(official_url)
         except ValueError as exc: raise HTTPException(422,str(exc))
     device=db.get(Device,int(device_id)) if device_id else Device()
-    for k,v in {"name":name,"ip_address":ip_address,"vendor":vendor,"model":model,"hardware_revision":hardware_revision or None,"installed_version":installed_version or None,"acquisition_method":acquisition_method,"profile_id":int(profile_id) if profile_id else None,"official_url":official_url or None,"description":description.strip() or None,"auto_check":bool(auto_check)}.items(): setattr(device,k,v)
+    if device_id and not device: raise HTTPException(404,"Устройство не найдено")
+    if acquisition_method not in {"manual","snmp"}: raise HTTPException(422,"Выберите способ получения установленной версии")
+    selected_profile=db.get(ConnectionProfile,int(profile_id)) if profile_id else None
+    if profile_id and not selected_profile: raise HTTPException(422,"Профиль подключения не найден")
+    encrypted=device.credentials_encrypted
+    if acquisition_method=="snmp" and not selected_profile:
+        if snmp_version not in {"2c","3"}: raise HTTPException(422,"Выберите версию SNMP")
+        if not 1<=snmp_port<=65535: raise HTTPException(422,"Порт SNMP должен быть от 1 до 65535")
+        old_secrets={}
+        if encrypted:
+            try: old_secrets=json.loads(decrypt_secret(encrypted))
+            except Exception: raise HTTPException(422,"Не удалось прочитать сохранённые учётные данные SNMP")
+        if snmp_version=="2c":
+            value=community.strip() or old_secrets.get("community","")
+            if not value: raise HTTPException(422,"Укажите Community для SNMPv2c")
+            secrets={"community":value}; snmpv3_username=None; security_level=None; auth_protocol=None; privacy_protocol=None
+        else:
+            snmpv3_username=snmpv3_username.strip()
+            if not snmpv3_username: raise HTTPException(422,"Укажите пользователя SNMPv3")
+            if security_level not in {"noAuthNoPriv","authNoPriv","authPriv"}: raise HTTPException(422,"Выберите уровень безопасности SNMPv3")
+            secrets={}; auth_value=auth_password or old_secrets.get("auth_password",""); privacy_value=privacy_password or old_secrets.get("privacy_password","")
+            if security_level in {"authNoPriv","authPriv"}:
+                if auth_protocol not in {"SHA","MD5"}: raise HTTPException(422,"Выберите протокол аутентификации")
+                if not auth_value: raise HTTPException(422,"Укажите пароль аутентификации SNMPv3")
+                secrets["auth_password"]=auth_value
+            else: auth_protocol=None
+            if security_level=="authPriv":
+                if privacy_protocol not in {"AES","DES"}: raise HTTPException(422,"Выберите протокол шифрования")
+                if not privacy_value: raise HTTPException(422,"Укажите пароль шифрования SNMPv3")
+                secrets["privacy_password"]=privacy_value
+            else: privacy_protocol=None
+        try: encrypted=encrypt_secret(json.dumps(secrets)) if secrets else None
+        except RuntimeError: raise HTTPException(503,"Ключ шифрования ENCRYPTION_KEY не настроен")
+    for k,v in {"name":name,"ip_address":ip_address,"vendor":vendor,"model":model,"hardware_revision":hardware_revision or None,"installed_version":installed_version or None,"acquisition_method":acquisition_method,"version_source":acquisition_method,"installed_version_source":acquisition_method,"profile_id":selected_profile.id if selected_profile else None,"snmp_version":snmp_version if acquisition_method=="snmp" and not selected_profile else None,"snmp_port":snmp_port,"snmpv3_username":snmpv3_username if acquisition_method=="snmp" and not selected_profile and snmp_version=="3" else None,"security_level":security_level if acquisition_method=="snmp" and not selected_profile and snmp_version=="3" else None,"auth_protocol":auth_protocol if acquisition_method=="snmp" and not selected_profile and snmp_version=="3" else None,"privacy_protocol":privacy_protocol if acquisition_method=="snmp" and not selected_profile and snmp_version=="3" else None,"credentials_encrypted":encrypted if acquisition_method=="snmp" and not selected_profile else None,"official_url":official_url or None,"description":description.strip() or None,"auto_check":bool(auto_check) if acquisition_method=="snmp" else False}.items(): setattr(device,k,v)
     if not device.installed_version: device.status="Версия не указана"
     db.add(device); db.commit(); return RedirectResponse("/",303)
 
@@ -562,20 +599,9 @@ async def run_check(device_id:int,request:Request,csrf:str=Form(...),db:Session=
 async def connection(device_id:int,request:Request,csrf:str=Form(...),db:Session=Depends(get_db)):
     verify(request,csrf); device=db.get(Device,device_id)
     if not device: raise HTTPException(404)
-    ok,message=await test_connection(device)
-    if not ok:
-        mailer.queue_notification(
-            "device_error",
-            f"Firmware Monitor — ошибка устройства {device.name}",
-            "Firmware Monitor не смог проверить подключение устройства.\n\n"
-            f"Устройство: {device.name}\n"
-            f"IP-адрес: {device.ip_address}\n"
-            f"Производитель: {device.vendor}\n"
-            f"Модель: {device.model}\n"
-            f"Результат проверки: {message}\n"
-            f"Время: {now().strftime('%d.%m.%Y %H:%M')}\n\n"
-            "Проверьте доступность устройства и параметры подключения.",
-        )
+    ok,message=await ping_address(device.ip_address)
+    if "application/json" in request.headers.get("accept",""):
+        return {"ok":ok,"message":message}
     return page(request,"message.html",title="Проверка подключения",message=message,ok=ok)
 
 @app.post("/check-all")

@@ -81,6 +81,7 @@ def test_folder_ui_is_present_and_escapes_catalog_names():
         js = client.get("/static/app.js").text
         assert 'id="folder-tree"' in html and 'id="add-folder"' in html
         assert "Переместить в каталог" in js and "activeFolder" in js
+        assert "collapsed-folder-ids" in js and "folder-toggle" in js
 
 
 def test_rename_move_and_delete_folder_with_content():
