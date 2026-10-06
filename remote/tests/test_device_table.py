@@ -6,6 +6,7 @@ HTML = (ROOT / "app/templates/dashboard.html").read_text(encoding="utf-8")
 JS = (ROOT / "app/static/app.js").read_text(encoding="utf-8")
 CSS = (ROOT / "app/static/device-table.css").read_text(encoding="utf-8")
 FIRMWARE_JS = (ROOT / "app/static/firmware-display.js").read_text(encoding="utf-8")
+DESCRIPTION_JS = (ROOT / "app/static/device-description.js").read_text(encoding="utf-8")
 
 
 def test_connection_method_has_own_column_and_ip_never_wraps():
@@ -44,5 +45,7 @@ def test_action_column_is_compact_and_fits_inside_table():
 
 
 def test_device_description_stays_on_one_line_with_full_text_tooltip():
-    assert 'title="{{d.description or d.name}}">{{d.name}}</strong>' in HTML
+    assert 'data-description="{{d.description or \'\'}}"' in HTML
+    assert "target?.dataset.description?.trim()" in DESCRIPTION_JS
+    assert "tooltip.className='device-description-tooltip'" in DESCRIPTION_JS
     assert '{{d.vendor}} · {{d.model}}' not in HTML
