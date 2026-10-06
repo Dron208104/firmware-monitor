@@ -119,7 +119,8 @@ def test_equipment_cosmetic_navigation_icons_and_counts():
         assert '>История<' not in html
         assert 'href="/history"' in html
         assert 'Последние события' in html
-        assert 'folder-plus' in js and 'panel-left-close' in js
+        assert 'folder-plus' in js
+        assert 'panel-left-close' not in js
         assert all(f'id="{name}"' in icons for name in ('folder', 'folder-open', 'folder-plus', 'folders', 'folder-minus'))
         assert "title.textContent='Устройства'" in js
         assert '`${visible} из ${total}`' in js
