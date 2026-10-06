@@ -151,6 +151,8 @@ def test_sidebar_uses_workspace_navigation_without_empty_pages():
 
     base = (Path(__file__).parents[1] / "app/templates/base.html").read_text(encoding="utf-8")
     assert 'class="signed-in-user"' in base
+    assert 'class="top-account-bar"' in base
+    assert 'class="account-menu"' in base
     assert "current_user.username" in base
 
 
