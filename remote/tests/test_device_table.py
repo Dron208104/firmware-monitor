@@ -15,7 +15,7 @@ def test_connection_method_has_own_column_and_ip_never_wraps():
 
 
 def test_columns_have_canonical_order_and_only_name_ip_are_sortable():
-    expected = ["device", "ip", "vendor", "model", "connection", "installed", "available", "status", "checked", "actions"]
+    expected = ["device", "ip", "connection", "installed", "status", "checked", "actions"]
     for column in expected:
         assert f'data-column="{column}"' in HTML
     header = HTML[HTML.index("<thead>"):HTML.index("</thead>")]
@@ -23,6 +23,13 @@ def test_columns_have_canonical_order_and_only_name_ip_are_sortable():
     assert positions == sorted(positions)
     assert "const columns=[['device','Устройство'],['ip','IP-адрес']]" in JS
     assert "dragstart" not in JS and "applyColumnOrder" not in JS
+
+
+def test_vendor_model_and_versions_are_grouped_for_a_compact_dashboard():
+    assert 'class="device-model"' in HTML
+    assert "{{d.vendor}} · {{d.model}}" in HTML
+    assert 'class="firmware-available"' in HTML
+    assert 'data-column="available" hidden' in HTML
 
 
 def test_action_column_is_compact_and_fits_inside_table():
