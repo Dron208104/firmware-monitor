@@ -138,6 +138,16 @@ def test_shared_page_headers_have_consistent_copy():
         assert 'Подключения, уведомления и справочник оборудования' in settings
 
 
+def test_sidebar_uses_workspace_navigation_without_empty_pages():
+    with TestClient(app) as client:
+        html = client.get("/").text
+        assert "Рабочее пространство" in html
+        assert 'href="/">' in html and 'href="/#equipment"' in html
+        assert 'href="/history"' in html
+        assert 'href="/settings?tab=notifications"' in html
+        assert all(label in html for label in ("Обзор", "Устройства", "Прошивки", "Уведомления"))
+
+
 def test_folder_creation_uses_styled_modal_instead_of_browser_prompt():
     js=(Path(__file__).parents[1]/"app/static/app.js").read_text(encoding="utf-8")
     assert "openCreateFolder()" in js

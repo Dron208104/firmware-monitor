@@ -19,7 +19,7 @@ def test_automation_can_be_disabled_and_rescheduled():
         assert app.state.scheduler.get_job("firmware-checks") is None
         with SessionLocal() as db:assert automation_config(db)==(False,"21:35")
         dashboard=client.get("/")
-        assert "Автопроверка выключена" in dashboard.text
+        assert "Мониторинг выключен" in dashboard.text
         general=client.get("/settings?tab=general")
         assert 'name="enabled" checked' not in general.text
 
