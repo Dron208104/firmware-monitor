@@ -121,7 +121,8 @@ def test_equipment_cosmetic_navigation_icons_and_counts():
         assert 'Последние события' in html
         assert 'folder-plus' in js and 'panel-left-close' in js
         assert all(f'id="{name}"' in icons for name in ('folder', 'folder-open', 'folder-plus', 'folders', 'folder-minus'))
-        assert 'deviceWord' in js and 'Показано ${visible} из ${total}' in js
+        assert "title.textContent='Устройства'" in js
+        assert '`${visible} из ${total}`' in js
         assert 'data:image/svg+xml' not in css
         assert ':has(.folder-more)' in css and '@media(hover:none)' in css
         assert '.folder-more{right:6px}' in css

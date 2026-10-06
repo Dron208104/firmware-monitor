@@ -7,15 +7,16 @@ JS = (ROOT / "app/static/app.js").read_text(encoding="utf-8")
 CSS = (ROOT / "app/static/device-table.css").read_text(encoding="utf-8")
 
 
-def test_connection_method_has_own_column_and_ip_never_wraps():
-    assert 'data-column="connection">Подключение' in HTML
+def test_connection_method_is_shown_under_ip_and_ip_never_wraps():
+    assert 'class="connection-note"' in HTML
+    assert 'data-column="connection" hidden' in HTML
     assert "d.acquisition_method=='manual'" in HTML
     assert 'td[data-column="ip"]{white-space:nowrap' in CSS
-    assert 'row.querySelector(\'[data-column="connection"]\').textContent=device.connection_type' in JS
+    assert "row.querySelector('.connection-note')" in JS
 
 
 def test_columns_have_canonical_order_and_only_name_ip_are_sortable():
-    expected = ["device", "ip", "connection", "installed", "status", "checked", "actions"]
+    expected = ["device", "ip", "installed", "status", "checked", "actions"]
     for column in expected:
         assert f'data-column="{column}"' in HTML
     header = HTML[HTML.index("<thead>"):HTML.index("</thead>")]
