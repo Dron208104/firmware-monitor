@@ -154,6 +154,8 @@ def test_sidebar_uses_workspace_navigation_without_empty_pages():
     assert 'class="top-account-bar"' in base
     assert 'class="top-account-identity"' in base
     assert 'class="account-menu"' in base
+    assert 'class="sidebar-pin"' in base
+    assert 'sidebar-layout.js' in base
     assert "current_user.username" in base
 
 
