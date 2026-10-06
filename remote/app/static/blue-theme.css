@@ -67,6 +67,7 @@ input,select,textarea,.filter-select__trigger{background:#0d1520!important;borde
 .dashboard-equipment .device>.icon{width:32px;height:32px;flex:0 0 32px;padding:7px}
 .dashboard-equipment .device-copy{max-width:100%;min-width:0}
 .dashboard-equipment .device-copy strong{font-size:12px}
+.dashboard-equipment .device-name{display:inline-block!important;width:fit-content;max-width:100%}
 .dashboard-equipment .device-comment{display:none!important}
 .dashboard-equipment .device-name.has-description{cursor:help;text-decoration-line:underline;text-decoration-style:dotted;text-decoration-color:#58708c;text-decoration-thickness:1px;text-underline-offset:3px}
 .dashboard-equipment .device-name.has-description:after{content:'•';margin-left:5px;color:#649cff;text-decoration:none}
