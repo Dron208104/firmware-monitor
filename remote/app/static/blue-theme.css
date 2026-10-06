@@ -51,22 +51,23 @@ input,select,textarea,.filter-select__trigger{background:#0d1520!important;borde
 #equipment .advanced-filters{position:absolute;z-index:20;top:58px;right:14px;display:grid;grid-template-columns:210px 210px;gap:8px;width:auto;padding:10px;border:1px solid var(--line);border-radius:10px;background:#111c2a;box-shadow:0 18px 42px rgba(0,0,0,.38)}
 #equipment .advanced-filters[hidden]{display:none!important}
 #equipment .table-wrap{border:0;border-top:1px solid var(--line-soft);border-radius:0 0 10px 10px}
-.dashboard-equipment table{width:100%!important;min-width:680px!important;table-layout:fixed!important}
+.dashboard-equipment table{width:100%!important;min-width:720px!important;table-layout:fixed!important}
 .dashboard-equipment th,.dashboard-equipment td{padding:10px 12px!important}
 .dashboard-equipment th{height:36px;font-size:10px;letter-spacing:.02em;text-transform:none}
 .dashboard-equipment tbody tr{height:62px;transition:background .15s ease,box-shadow .15s ease}
 .dashboard-equipment tbody tr:hover{background:linear-gradient(90deg,rgba(37,95,174,.24),rgba(31,74,129,.17));box-shadow:inset 3px 0 #4c80ff}
-.dashboard-equipment [data-column="device"]{width:25%!important;min-width:0!important}
-.dashboard-equipment [data-column="ip"]{width:16%!important;min-width:0!important}
-.dashboard-equipment [data-column="installed"]{width:25%!important;min-width:0!important}
-.dashboard-equipment [data-column="status"]{width:17%!important;min-width:0!important}
-.dashboard-equipment [data-column="checked"]{width:12%!important;min-width:94px!important}
+.dashboard-equipment [data-column="device"]{width:21%!important;min-width:0!important}
+.dashboard-equipment [data-column="ip"]{width:13%!important;min-width:0!important}
+.dashboard-equipment [data-column="connection"]{width:11%!important;min-width:76px!important;white-space:nowrap}
+.dashboard-equipment [data-column="installed"]{width:22%!important;min-width:0!important}
+.dashboard-equipment [data-column="status"]{width:16%!important;min-width:0!important}
+.dashboard-equipment [data-column="checked"]{width:11%!important;min-width:82px!important}
 .dashboard-equipment [data-column="actions"]{width:50px!important;min-width:50px!important;padding-inline:7px!important}
 .dashboard-equipment .device{gap:10px}
 .dashboard-equipment .device>.icon{width:32px;height:32px;flex:0 0 32px;padding:7px}
 .dashboard-equipment .device-copy{max-width:100%;min-width:0}
 .dashboard-equipment .device-copy strong{font-size:12px}
-.dashboard-equipment .device-model,.dashboard-equipment .device-comment,.dashboard-equipment .connection-note,.dashboard-equipment [data-column="checked"] small{display:block;max-width:100%;margin-top:3px;overflow:hidden;color:#7f95ad!important;font-family:Inter,system-ui,sans-serif;font-size:9px;line-height:1.2;text-overflow:ellipsis;white-space:nowrap!important}
+.dashboard-equipment .device-model,.dashboard-equipment [data-column="checked"] small{display:block;max-width:100%;margin-top:3px;overflow:hidden;color:#7f95ad!important;font-family:Inter,system-ui,sans-serif;font-size:9px;line-height:1.2;text-overflow:ellipsis;white-space:nowrap!important}
 .dashboard-equipment .equipment-layout{align-items:start}
 .dashboard-equipment .firmware-versions{align-items:center;gap:7px;min-height:34px;overflow:hidden;line-height:1}
 .dashboard-equipment .firmware-versions>span:not(.firmware-arrow):not([hidden]){justify-content:center}

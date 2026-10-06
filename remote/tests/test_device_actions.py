@@ -53,8 +53,8 @@ def test_device_table_supports_name_ip_sorting_and_comments():
 
 def test_device_name_and_description_have_compact_identity_layout():
     html=(Path(__file__).parents[1]/"app"/"templates"/"dashboard.html").read_text(encoding="utf-8")
-    assert '<span class="device-copy"><strong>{{d.name}}</strong>' in html
-    assert '<small class="device-comment" title="{{d.description}}">{{d.description}}</small>' in html
+    assert '<span class="device-copy"><strong title="{{d.description or d.name}}">{{d.name}}</strong>' in html
+    assert '<small class="device-model" title="{{d.model}}">{{d.model}}' in html
     assert 'href="/static/device-identity.css?v=1"' in html
     assert "identity.className='device-copy'" in JS
     assert "description.className='device-comment'" in JS
