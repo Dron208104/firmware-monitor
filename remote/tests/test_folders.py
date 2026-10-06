@@ -143,10 +143,15 @@ def test_sidebar_uses_workspace_navigation_without_empty_pages():
     with TestClient(app) as client:
         html = client.get("/").text
         assert "Рабочее пространство" in html
-        assert 'href="/">' in html and 'href="/#equipment"' in html
+        assert 'href="/">' in html
         assert 'href="/history"' in html
         assert 'href="/settings?tab=notifications"' in html
-        assert all(label in html for label in ("Обзор", "Устройства", "Прошивки", "Уведомления"))
+        assert "Обзор" not in html
+        assert all(label in html for label in ("Устройства", "Прошивки", "Уведомления"))
+
+    base = (Path(__file__).parents[1] / "app/templates/base.html").read_text(encoding="utf-8")
+    assert 'class="signed-in-user"' in base
+    assert "current_user.username" in base
 
 
 def test_folder_creation_uses_styled_modal_instead_of_browser_prompt():
