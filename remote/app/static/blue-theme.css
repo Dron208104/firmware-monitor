@@ -33,11 +33,14 @@ input,select,textarea,.filter-select__trigger{background:#0d1520!important;borde
 /* Compact equipment card aligned with the dashboard reference. */
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 #equipment{position:relative;overflow:visible}
-#equipment .equipment-toolbar{display:grid;grid-template-columns:auto auto minmax(190px,1fr) 38px;align-items:center;justify-content:stretch;gap:10px;min-height:62px;padding:10px 14px}
+#equipment .equipment-toolbar{display:grid;grid-template-columns:auto auto minmax(210px,280px) 38px;align-items:center;justify-content:start;gap:10px;min-height:62px;padding:10px 14px}
 #equipment .equipment-count{display:flex;align-items:center;gap:8px;min-width:max-content}
 #equipment .equipment-count strong{font-size:17px;line-height:1}
 #equipment .equipment-count small{display:grid;place-items:center;min-width:25px;height:23px;padding:0 7px;border-radius:9px;background:#192a40;color:#91a9c7;font-size:11px;line-height:1}
-#equipment .quick-filters{justify-self:start;overflow:visible}
+#equipment .quick-filters{justify-self:start;gap:0;overflow:visible;padding:3px;border:1px solid var(--line);border-radius:9px;background:#0c1521}
+#equipment .quick-filters button{min-height:30px;padding:5px 11px;border:0;border-radius:6px}
+#equipment .quick-filters button+button{margin-left:1px}
+#equipment .quick-filters button.active{box-shadow:0 4px 12px rgba(30,100,235,.25)}
 #equipment .toolbar-search{display:flex;align-items:center;gap:8px;min-width:0;height:38px;padding:0 11px;border:1px solid var(--line);border-radius:8px;background:#0c1521;color:#7890ad}
 #equipment .toolbar-search:focus-within{border-color:#3e74c8;box-shadow:0 0 0 2px rgba(76,128,255,.10)}
 #equipment .toolbar-search .icon{width:17px;height:17px;flex:0 0 auto}
@@ -76,5 +79,5 @@ input,select,textarea,.filter-select__trigger{background:#0d1520!important;borde
 .dashboard-equipment .row-actions>.firmware-action-placeholder{display:none!important}
 .dashboard-equipment .equipment-layout .table-wrap th[data-column="checked"],.dashboard-equipment .equipment-layout .table-wrap td[data-column="checked"]{display:table-cell!important}
 #equipment .equipment-count{flex-direction:row!important}
-@media(max-width:1200px){#equipment .equipment-toolbar{grid-template-columns:auto 1fr 38px}.equipment-toolbar .quick-filters{grid-column:1/-1;grid-row:2;width:100%}.dashboard-equipment table{min-width:720px!important}}
+@media(max-width:1200px){#equipment .equipment-toolbar{grid-template-columns:auto minmax(210px,1fr) 38px}.equipment-toolbar .quick-filters{grid-column:1/-1;grid-row:2;width:max-content;max-width:100%}.dashboard-equipment table{min-width:720px!important}}
 @media(max-width:760px){#equipment .equipment-toolbar{display:flex;flex-direction:row;flex-wrap:wrap}.equipment-toolbar .equipment-count{width:100%}.equipment-toolbar .quick-filters{order:3}.equipment-toolbar .toolbar-search{flex:1}.equipment-toolbar .filter-toggle{flex:0 0 38px}#equipment .advanced-filters{left:14px;right:14px;top:104px;grid-template-columns:1fr}}
