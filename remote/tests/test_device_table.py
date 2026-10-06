@@ -14,6 +14,7 @@ def test_connection_method_is_shown_under_ip_and_ip_never_wraps():
     assert "d.acquisition_method=='manual'" in HTML
     assert 'td[data-column="ip"]{white-space:nowrap' in CSS
     assert "row.querySelector('.connection-note')" in JS
+    assert 'data-column="model" hidden' in HTML
 
 
 def test_columns_have_canonical_order_and_only_name_ip_are_sortable():
