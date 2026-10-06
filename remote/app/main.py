@@ -286,7 +286,27 @@ def dashboard(request:Request,q:str="",vendor:str="",status:str="",db:Session=De
     update_statuses={"Доступно обновление","Есть обновление"}; current_statuses={"Актуальная версия","Актуально"}
     counts={"total":len(all_devices),"updates":sum(x.status in update_statuses for x in all_devices),"current":sum(x.status in current_statuses for x in all_devices),"review":sum(x.status not in update_statuses|current_statuses for x in all_devices)}
     updates=[x for x in all_devices if x.status in update_statuses]; problems=[x for x in all_devices if x.status in attention_statuses-update_statuses]
-    return page(request,"dashboard.html",devices=devices,counts=counts,attention=updates+problems,attention_updates=updates,attention_problems=problems,q=q,vendor=vendor,status=status)
+    visible_ids=[x.id for x in all_devices]
+    event_rows=[]
+    if visible_ids:
+        firmware_rows=db.execute(
+            select(FirmwareEvent,Device)
+            .join(Device,FirmwareEvent.device_id==Device.id)
+            .where(FirmwareEvent.device_id.in_(visible_ids))
+            .order_by(FirmwareEvent.created_at.desc())
+            .limit(12)
+        ).all()
+        check_rows=db.execute(
+            select(CheckHistory,Device)
+            .join(Device,CheckHistory.device_id==Device.id)
+            .where(CheckHistory.device_id.in_(visible_ids))
+            .order_by(CheckHistory.checked_at.desc())
+            .limit(12)
+        ).all()
+        event_rows.extend({"kind":"firmware","title":event.event_type,"description":event.description or f"{device.name} · {event.version}","device":device.name,"created_at":event.created_at,"severity":event.severity or "info"} for event,device in firmware_rows)
+        event_rows.extend({"kind":"check","title":"Проверка завершена" if not history.details else "Ошибка проверки","description":f"{device.name} · {history.status}","device":device.name,"created_at":history.checked_at,"severity":"error" if history.details else ("success" if history.status in current_statuses else "warning" if history.status in update_statuses else "info")} for history,device in check_rows)
+    recent_events=sorted(event_rows,key=lambda item:item["created_at"],reverse=True)[:10]
+    return page(request,"dashboard.html",devices=devices,counts=counts,attention=updates+problems,attention_updates=updates,attention_problems=problems,recent_events=recent_events,q=q,vendor=vendor,status=status)
 
 @app.get("/api/devices",response_model=list[DeviceOut])
 def api_devices(request:Request,db:Session=Depends(get_db)): return [serialize(x,db) for x in db.scalars(scope_devices(select(Device),db,getattr(request.state,"user",None)).order_by(Device.name)).all()]

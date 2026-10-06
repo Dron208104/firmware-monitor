@@ -117,7 +117,8 @@ def test_equipment_cosmetic_navigation_icons_and_counts():
         css = client.get("/static/folders.css").text
         icons = client.get("/static/icons.svg").text
         assert '>История<' not in html
-        assert '/history' not in html
+        assert 'href="/history"' in html
+        assert 'Последние события' in html
         assert 'folder-plus' in js and 'panel-left-close' in js
         assert all(f'id="{name}"' in icons for name in ('folder', 'folder-open', 'folder-plus', 'folders', 'folder-minus'))
         assert 'deviceWord' in js and 'Показано ${visible} из ${total}' in js
