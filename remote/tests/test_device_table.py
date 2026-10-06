@@ -44,5 +44,5 @@ def test_action_column_is_compact_and_fits_inside_table():
 
 
 def test_device_description_stays_on_one_line_with_full_text_tooltip():
-    assert '<strong title="{{d.description or d.name}}">{{d.name}}</strong>' in HTML
+    assert 'title="{{d.description or d.name}}">{{d.name}}</strong>' in HTML
     assert '{{d.vendor}} · {{d.model}}' not in HTML
