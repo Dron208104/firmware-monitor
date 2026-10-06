@@ -85,6 +85,8 @@ input,select,textarea,.filter-select__trigger{background:#0d1520!important;borde
 .dashboard-equipment .row-actions>a,.dashboard-equipment .row-actions>form{display:none!important}
 .dashboard-equipment .row-actions>.action-more{display:grid!important}
 .dashboard-equipment .row-actions>.firmware-download,.dashboard-equipment .row-actions>.firmware-changelog,.dashboard-equipment .action-more summary{width:30px!important;min-width:30px!important;height:30px!important;padding:7px!important;border:1px solid var(--line)!important;border-radius:6px!important;background:#121d2b!important;color:#849ab4!important;box-shadow:none!important}
+.dashboard-equipment .action-more summary{display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important;font-size:0!important;line-height:0!important}
+.dashboard-equipment .action-more summary .icon{width:16px;height:16px;margin:0!important;transform:translateY(-1px)}
 .dashboard-equipment .row-actions>.firmware-download:hover,.dashboard-equipment .row-actions>.firmware-changelog:hover,.dashboard-equipment .action-more summary:hover,.dashboard-equipment .action-more[open] summary{border-color:#3b5270!important;background:#17263a!important;color:#dbe6f2!important}
 .dashboard-equipment .row-actions>.firmware-download:not(.firmware-action-placeholder),.dashboard-equipment .row-actions>.firmware-changelog:not(.firmware-action-placeholder){display:grid!important}
 .dashboard-equipment .row-actions>.firmware-action-placeholder{display:none!important}
