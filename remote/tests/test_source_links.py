@@ -49,6 +49,6 @@ def test_source_action_menu_is_viewport_positioned_on_narrow_screens():
     assert "width:min(210px,calc(100vw - 16px))" in css
     assert ".profile-actions summary{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px" in css
     assert ".settings-page .profile-actions summary.icon-action{border-color:#2a4059;background:#121d2b;color:#8fa8c2" in css
-    assert '/static/settings.css?v=10' in (root / "app/templates/profiles.html").read_text(encoding="utf-8")
+    assert '/static/settings.css?v=11' in (root / "app/templates/profiles.html").read_text(encoding="utf-8")
     assert "placeProfileMenu" in js
     assert "Math.min(rect.right-width,innerWidth-width-edge)" in js

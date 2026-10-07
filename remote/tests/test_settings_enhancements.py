@@ -182,6 +182,9 @@ def test_smtp_form_rows_are_ordered_in_complete_pairs(isolated_client):
     recipients = page.index('name="recipients"')
     assert sender_name < reminders < recipients
     assert 'class="smtp-wide">Получатели уведомлений' in page
+    settings_css = client.get("/static/settings.css").text
+    assert ".smtp-grid label{display:grid;align-content:start;gap:6px" in settings_css
+    assert '/static/settings.css?v=11' in page
 
 
 def test_firmware_reminders_are_limited_and_persisted(isolated_client, monkeypatch):
