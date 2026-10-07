@@ -157,4 +157,15 @@ def test_device_table_paginates_and_activity_feed_scrolls_inside_panel():
 def test_shared_panel_table_headings_match_project_palette():
     base=(Path(__file__).parents[1]/"app/templates/base.html").read_text(encoding="utf-8")
     assert ".panel>.table-wrap thead th{height:40px;background:#0f1824;color:#7f94ad;border-color:var(--line-soft)" in BLUE_CSS
-    assert '/static/blue-theme.css?v=22' in base
+    assert '/static/blue-theme.css?v=23' in base
+
+
+def test_dashboard_metrics_use_refined_dedicated_icons():
+    root=Path(__file__).parents[1]
+    html=(root/"app/templates/dashboard.html").read_text(encoding="utf-8")
+    base=(root/"app/templates/base.html").read_text(encoding="utf-8")
+    for class_name in ("metric-total","metric-updates","metric-current","metric-review"):
+        assert f'class="{class_name}"' in html
+    assert html.count('class="icon metric-icon"') == 4
+    assert ".metrics .metric-icon{width:22px;height:22px;stroke-width:1.55}" in BLUE_CSS
+    assert '/static/blue-theme.css?v=23' in base
