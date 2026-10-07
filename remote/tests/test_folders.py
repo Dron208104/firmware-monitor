@@ -157,7 +157,7 @@ def test_sidebar_uses_workspace_navigation_without_empty_pages():
     assert 'class="sidebar-pin"' in base
     assert 'sidebar-layout.js' in base
     assert "current_user.display_name" in base
-    assert "current_user.username" not in base
+    assert '<div class="account-menu__popover"><strong>{{current_user.display_name}}</strong><small>{{current_user.username}}</small>' in base
 
 
 def test_folder_creation_uses_styled_modal_instead_of_browser_prompt():
