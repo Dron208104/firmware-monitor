@@ -1,5 +1,5 @@
 {% extends 'base.html' %}{% block content %}
-<link rel="stylesheet" href="/static/device-form.css?v=1">
+<link rel="stylesheet" href="/static/device-form.css?v=2">
 <header><div><em>ОБОРУДОВАНИЕ</em><h1>{{'Редактирование устройства' if device else 'Новое устройство'}}</h1><p>Параметры коммутатора и способ получения установленной версии прошивки</p></div></header>
 <form class="card form device-edit-form" method="post" action="/devices/save" data-device-edit-form><input type="hidden" name="csrf" value="{{csrf}}"><input type="hidden" name="device_id" value="{{device.id if device else ''}}">
 <label>Понятное имя<input required name="name" value="{{device.name if device else ''}}"></label><label>IP-адрес<input required name="ip_address" value="{{device.ip_address if device else ''}}"></label>
