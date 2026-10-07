@@ -37,6 +37,17 @@ def test_successful_creation_and_no_secrets():
         raw=str(response.json())+str(client.get("/api/devices").json())
         assert "private-value" not in raw and "community" not in raw and "password" not in raw
 
+def test_device_icon_type_is_persisted_and_validated():
+    clean_devices()
+    with TestClient(app) as client:
+        data=payload(icon_type="router"); data["csrf"]=csrf(client)
+        response=client.post("/api/devices",json=data)
+        assert response.status_code==201 and response.json()["icon_type"]=="router"
+        with SessionLocal() as db:
+            assert db.get(Device,response.json()["id"]).icon_type=="router"
+        invalid=payload(address="192.0.2.11",icon_type="access-point"); invalid["csrf"]=client.cookies["csrf"]
+        assert client.post("/api/devices",json=invalid).status_code==422
+
 def test_model_from_another_vendor_is_rejected():
     clean_devices()
     with TestClient(app) as client:

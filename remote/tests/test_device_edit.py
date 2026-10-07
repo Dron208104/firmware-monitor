@@ -52,7 +52,7 @@ def test_edit_device_can_change_snmp_version_and_preserve_blank_secrets():
         csrf = client.cookies["csrf"]
         response = client.post("/devices/save", data={
             "csrf": csrf, "device_id": device_id, "name": "SNMP edit test", "ip_address": "192.0.2.249",
-            "vendor": "QTECH", "model": "Test", "acquisition_method": "snmp", "profile_id": "",
+            "vendor": "QTECH", "model": "Test", "icon_type": "router", "acquisition_method": "snmp", "profile_id": "",
             "snmp_version": "3", "snmp_port": "161", "snmpv3_username": "monitor",
             "security_level": "authPriv", "auth_protocol": "SHA", "auth_password": "",
             "privacy_protocol": "AES", "privacy_password": "", "installed_version": "",
@@ -63,6 +63,7 @@ def test_edit_device_can_change_snmp_version_and_preserve_blank_secrets():
     with SessionLocal() as db:
         saved = db.get(Device, device_id)
         assert saved.snmp_version == "3"
+        assert saved.icon_type == "router"
         assert json.loads(decrypt_secret(saved.credentials_encrypted)) == {"auth_password": "old-auth", "privacy_password": "old-privacy"}
         db.delete(saved)
         db.commit()

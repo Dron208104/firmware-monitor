@@ -32,3 +32,10 @@ def test_optional_hardware_revision_is_actually_hidden():
 
 def test_comment_field_is_available_when_creating_device():
     assert '<span>Комментарий</span><textarea name="description"' in HTML
+
+def test_equipment_icon_picker_offers_switch_and_router():
+    picker=(ROOT/"app"/"static"/"device-icon-picker.css").read_text(encoding="utf-8")
+    assert 'name="icon_type" value="switch" checked' in HTML
+    assert 'name="icon_type" value="router"' in HTML
+    assert ".device-icon-options" in picker
+    assert "input:checked+span" in picker

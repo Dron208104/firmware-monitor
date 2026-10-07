@@ -220,6 +220,7 @@ class Device(Base):
     management_port: Mapped[int] = mapped_column(Integer, default=161)
     vendor: Mapped[str] = mapped_column(String(30))
     model: Mapped[str] = mapped_column(String(120))
+    icon_type: Mapped[str] = mapped_column(String(20), default="switch")
     catalog_model_id: Mapped[int | None] = mapped_column(ForeignKey("equipment_models.id"), nullable=True, index=True)
     folder_id: Mapped[int | None] = mapped_column(ForeignKey("equipment_folders.id", ondelete="SET NULL"), nullable=True, index=True)
     hardware_revision: Mapped[str | None] = mapped_column(String(60), nullable=True)

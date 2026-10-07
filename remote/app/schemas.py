@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class DeviceCreate(BaseModel):
@@ -8,6 +10,7 @@ class DeviceCreate(BaseModel):
     vendor_id: int | None = None
     model_id: int | None = None
     custom_model: str | None = Field(default=None, max_length=120)
+    icon_type: Literal["switch", "router"] = "switch"
     version_source: str = "snmp"
     snmp_version: str = "2c"
     snmp_port: int = 161
@@ -36,6 +39,7 @@ class DeviceOut(BaseModel):
     address: str
     vendor: str
     model: str
+    icon_type: Literal["switch", "router"]
     acquisition_method: str
     connection_type: str
     version_source: str

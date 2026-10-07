@@ -2,6 +2,7 @@ from sqlalchemy import bindparam, inspect, text
 
 COLUMNS = {
     "management_port": "INTEGER NOT NULL DEFAULT 161",
+    "icon_type": "VARCHAR(20) NOT NULL DEFAULT 'switch'",
     "description": "TEXT",
     "snmp_version": "VARCHAR(10)",
     "snmp_port": "INTEGER NOT NULL DEFAULT 161",

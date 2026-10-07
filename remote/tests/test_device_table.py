@@ -38,6 +38,10 @@ def test_vendor_model_and_versions_are_grouped_for_a_compact_dashboard():
     assert "updateStatuses.has(device.status)" in FIRMWARE_JS
 
 
+def test_device_row_uses_the_saved_equipment_icon():
+    assert "{{icon(d.icon_type or 'switch')}}" in HTML
+
+
 def test_action_column_is_compact_and_fits_inside_table():
     assert '[data-column="actions"]{width:112px!important;min-width:112px!important' in CSS
     assert "grid-template-columns:30px 30px 30px!important" in CSS
