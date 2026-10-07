@@ -115,6 +115,26 @@ def test_source_states_are_distinct_and_model_actions_are_accessible(isolated_cl
     assert 'data-model-tooltip="Открыть источник"' in page.text or 'data-model-tooltip="Проверить модель"' not in page.text
 
 
+def test_equipment_type_is_a_validated_choice(isolated_client):
+    client, sessions = isolated_client
+    with sessions() as db:
+        vendor = EquipmentVendor(name="Type vendor", slug="type-vendor")
+        db.add(vendor)
+        db.commit()
+        vendor_id = vendor.id
+    page = client.get("/settings?tab=equipment")
+    assert '<select name="device_type" required>' in page.text
+    assert '<option value="Коммутатор">Коммутатор</option>' in page.text
+    assert '<option value="Маршрутизатор">Маршрутизатор</option>' in page.text
+    created = client.post(f"/api/vendors/{vendor_id}/models", json={"csrf": token(client), "name": "Router 1", "device_type": "Маршрутизатор"})
+    assert created.status_code == 201 and created.json()["device_type"] == "Маршрутизатор"
+    model_id = created.json()["id"]
+    changed = client.patch(f"/api/models/{model_id}", json={"csrf": token(client), "device_type": "Коммутатор"})
+    assert changed.status_code == 200 and changed.json()["device_type"] == "Коммутатор"
+    invalid = client.patch(f"/api/models/{model_id}", json={"csrf": token(client), "device_type": "Сервер"})
+    assert invalid.status_code == 422 and "device_type" in invalid.json()["errors"]
+
+
 def test_smtp_save_test_delivery_and_secret_masking(isolated_client, monkeypatch):
     client, sessions = isolated_client
     config = {"enabled": True, "host": "smtp.example.com", "port": 587, "encryption": "starttls", "username": "mailer", "password": "smtp-private-password", "sender_email": "monitor@example.com", "sender_name": "Firmware Monitor", "recipients": "one@example.com, TWO@Example.com", "event_types": ["new_firmware", "source_error"], "reminder_count": 3}
