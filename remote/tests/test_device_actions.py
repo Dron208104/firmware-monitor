@@ -4,6 +4,8 @@ JS=(Path(__file__).parents[1]/"app"/"static"/"app.js").read_text(encoding="utf-8
 CSS=(Path(__file__).parents[1]/"app"/"static"/"style.css").read_text(encoding="utf-8")
 FOLDERS_CSS=(Path(__file__).parents[1]/"app"/"static"/"folders.css").read_text(encoding="utf-8")
 IDENTITY_CSS=(Path(__file__).parents[1]/"app"/"static"/"device-identity.css").read_text(encoding="utf-8")
+BLUE_CSS=(Path(__file__).parents[1]/"app"/"static"/"blue-theme.css").read_text(encoding="utf-8")
+TABLE_CSS=(Path(__file__).parents[1]/"app"/"static"/"device-table.css").read_text(encoding="utf-8")
 
 def test_firmware_actions_depend_on_backend_urls():
     assert "if(device.download_url&&device.status==='Есть обновление')" in JS
@@ -91,6 +93,10 @@ def test_firmware_action_columns_keep_all_four_states_aligned():
     assert "grid-column:2" in FOLDERS_CSS
     assert "grid-column:3" in FOLDERS_CSS
     assert ":disabled:hover" in FOLDERS_CSS
+    assert ".row-actions>.firmware-download,.dashboard-equipment .row-actions>.firmware-changelog{display:grid!important" in BLUE_CSS
+    assert ".row-actions>.firmware-action-placeholder{display:none" not in BLUE_CSS
+    assert ".firmware-action-placeholder{display:grid!important" in TABLE_CSS
+    assert "cursor:not-allowed!important" in TABLE_CSS
 
 def test_device_delete_uses_application_dialog_with_confirmation_checkbox():
     html=(Path(__file__).parents[1]/"app"/"templates"/"dashboard.html").read_text(encoding="utf-8")

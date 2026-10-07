@@ -11,6 +11,8 @@
 .equipment-layout .table-wrap [data-column="actions"]{width:112px!important;min-width:112px!important;padding-left:6px;padding-right:10px}
 .equipment-layout .table-wrap [data-column="actions"] .row-actions{display:grid!important;grid-template-columns:30px 30px 30px!important;gap:5px;width:100px!important;min-width:100px!important;justify-content:end}
 .equipment-layout .table-wrap [data-column="actions"] .firmware-download,.equipment-layout .table-wrap [data-column="actions"] .firmware-changelog{width:30px!important;min-width:30px!important;height:30px!important;padding:7px!important}
+.equipment-layout .table-wrap [data-column="actions"] .firmware-action-placeholder{display:grid!important;place-items:center!important;border-color:#24364b!important;background:#0f1926!important;color:#536981!important;cursor:not-allowed!important;opacity:.72!important}
+.equipment-layout .table-wrap [data-column="actions"] .firmware-action-placeholder:hover{border-color:#24364b!important;background:#0f1926!important;color:#536981!important}
 .equipment-layout .table-wrap [data-column="actions"] .firmware-download span,.equipment-layout .table-wrap [data-column="actions"] .firmware-changelog span{display:none!important}
 .equipment-layout .table-wrap [data-column="actions"] .action-more{width:30px;min-width:30px}
 .equipment-layout .table-wrap [data-column="device"] .device-copy{display:block;min-width:0;overflow:hidden}
