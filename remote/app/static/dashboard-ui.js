@@ -42,12 +42,15 @@
   syncAdvancedState();
   const activityPanel=document.querySelector('.activity-panel');
   const equipmentPanel=document.querySelector('.dashboard-equipment');
+  const workspace=document.querySelector('.dashboard-workspace');
+  const devicePanel=document.querySelector('#equipment');
+  const folderPanel=document.querySelector('.dashboard-equipment .folder-panel');
   if(activityPanel&&equipmentPanel){
     const desktopLayout=matchMedia('(min-width:1551px)');
     const syncActivityHeight=()=>{
-      if(!desktopLayout.matches){activityPanel.style.removeProperty('height');activityPanel.style.removeProperty('max-height');return}
-      const available=Math.max(280,innerHeight-activityPanel.getBoundingClientRect().top-20);
-      const height=Math.min(Math.max(440,Math.ceil(equipmentPanel.getBoundingClientRect().height)),available);
+      if(!desktopLayout.matches){workspace?.style.removeProperty('--dashboard-row-height');activityPanel.style.removeProperty('height');activityPanel.style.removeProperty('max-height');return}
+      const height=Math.max(440,devicePanel?.scrollHeight||0,folderPanel?.scrollHeight||0);
+      workspace?.style.setProperty('--dashboard-row-height',`${height}px`);
       activityPanel.style.height=`${height}px`;
       activityPanel.style.maxHeight=`${height}px`;
     };
