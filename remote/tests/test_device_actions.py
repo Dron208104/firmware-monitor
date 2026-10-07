@@ -146,7 +146,7 @@ def test_device_table_paginates_and_activity_feed_scrolls_inside_panel():
     assert '.device-pagination[hidden]{display:none!important}' in TABLE_CSS
     assert '.activity-list{min-height:0!important;max-height:none!important;flex:1 1 auto;overflow-y:auto!important' in TABLE_CSS
     assert "new ResizeObserver(syncActivityHeight).observe(equipmentPanel)" in DASHBOARD_JS
-    assert "Math.max(440,devicePanel?.scrollHeight||0,folderPanel?.scrollHeight||0)" in DASHBOARD_JS
+    assert "Math.max(516,devicePanel?.scrollHeight||0,folderPanel?.scrollHeight||0)" in DASHBOARD_JS
     assert "workspace?.style.setProperty('--dashboard-row-height'" in DASHBOARD_JS
     assert ".dashboard-workspace{align-items:start!important}" in TABLE_CSS
-    assert "height:var(--dashboard-row-height,440px)!important" in TABLE_CSS
+    assert "height:var(--dashboard-row-height,516px)!important" in TABLE_CSS

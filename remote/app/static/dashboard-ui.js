@@ -49,7 +49,7 @@
     const desktopLayout=matchMedia('(min-width:1551px)');
     const syncActivityHeight=()=>{
       if(!desktopLayout.matches){workspace?.style.removeProperty('--dashboard-row-height');activityPanel.style.removeProperty('height');activityPanel.style.removeProperty('max-height');return}
-      const height=Math.max(440,devicePanel?.scrollHeight||0,folderPanel?.scrollHeight||0);
+      const height=Math.max(516,devicePanel?.scrollHeight||0,folderPanel?.scrollHeight||0);
       workspace?.style.setProperty('--dashboard-row-height',`${height}px`);
       activityPanel.style.height=`${height}px`;
       activityPanel.style.maxHeight=`${height}px`;
