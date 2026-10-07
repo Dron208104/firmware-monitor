@@ -94,6 +94,8 @@ input,select,textarea,.filter-select__trigger{background:#0d1520!important;borde
 .dashboard-equipment .row-actions>.firmware-download,.dashboard-equipment .row-actions>.firmware-changelog{display:grid!important;place-items:center!important}
 .dashboard-equipment .row-actions>.firmware-action-placeholder{border-color:#24364b!important;background:#0f1926!important;color:#536981!important;cursor:not-allowed!important;opacity:.72!important}
 .dashboard-equipment .row-actions>.firmware-action-placeholder:hover{border-color:#24364b!important;background:#0f1926!important;color:#536981!important}
+.dashboard-equipment .action-more summary{appearance:none;border-color:#2a4059!important;background:#121d2b!important;color:#8fa8c2!important;transition:border-color .15s ease,background .15s ease,color .15s ease}
+.dashboard-equipment .action-more summary .icon circle{fill:currentColor;stroke:none}
 .dashboard-equipment .equipment-layout .table-wrap th[data-column="checked"],.dashboard-equipment .equipment-layout .table-wrap td[data-column="checked"]{display:table-cell!important}
 #equipment .equipment-count{flex-direction:row!important}
 .dashboard-workspace .activity-panel{min-height:0;height:max-content}

@@ -98,6 +98,8 @@ def test_firmware_action_columns_keep_all_four_states_aligned():
     assert ".row-actions>.firmware-action-placeholder{display:none" not in BLUE_CSS
     assert ".firmware-action-placeholder{display:grid!important" in TABLE_CSS
     assert "cursor:not-allowed!important" in TABLE_CSS
+    assert ".dashboard-equipment .action-more summary{appearance:none;border-color:#2a4059!important;background:#121d2b!important;color:#8fa8c2!important" in BLUE_CSS
+    assert ".dashboard-equipment .action-more summary .icon circle{fill:currentColor;stroke:none}" in BLUE_CSS
 
 def test_device_delete_uses_application_dialog_with_confirmation_checkbox():
     html=(Path(__file__).parents[1]/"app"/"templates"/"dashboard.html").read_text(encoding="utf-8")
