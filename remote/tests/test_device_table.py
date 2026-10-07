@@ -40,6 +40,10 @@ def test_vendor_model_and_versions_are_grouped_for_a_compact_dashboard():
 
 def test_device_row_uses_the_saved_equipment_icon():
     assert "{{icon(d.icon_type or 'switch')}}" in HTML
+    identity=(ROOT / "app/static/device-identity.css").read_text(encoding="utf-8")
+    assert "width: 36px" in identity
+    assert "border: 0" in identity
+    assert "background: transparent !important" in identity
 
 
 def test_action_column_is_compact_and_fits_inside_table():

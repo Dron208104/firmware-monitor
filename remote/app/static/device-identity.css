@@ -5,7 +5,18 @@
 .equipment-layout .table-wrap td:first-child { width: 20%; min-width: 0; }
 .equipment-layout .table-wrap tbody tr { height: auto; }
 .equipment-layout .table-wrap .device { min-width: 0; white-space: normal; }
-.equipment-layout .table-wrap .device>.icon { align-self: flex-start; }
+.equipment-layout .table-wrap .device>.icon {
+  align-self: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  padding: 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  color: #86a9cc !important;
+  stroke-width: 1.65;
+}
 .equipment-layout .table-wrap .device-copy { display: block; min-width: 0; flex: 1; }
 .equipment-layout .table-wrap .device-copy strong,
 .equipment-layout .table-wrap .device-comment {

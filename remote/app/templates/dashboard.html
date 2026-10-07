@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% from '_page_header.html' import page_header %}
 {% block content %}
-<link rel="stylesheet" href="/static/device-identity.css?v=1"><link rel="stylesheet" href="/static/device-table.css?v=12">
+<link rel="stylesheet" href="/static/device-identity.css?v=2"><link rel="stylesheet" href="/static/device-table.css?v=12">
 <div class="dashboard-page">
 {% call page_header('РАБОЧЕЕ ПРОСТРАНСТВО / ОБЗОР', 'Состояние инфраструктуры', 'Контроль версий прошивок и состояния сетевых устройств') %}
 <form method="post" action="/check-all"><input type="hidden" name="csrf" value="{{csrf}}"><button class="btn secondary" {% if counts.total==0 %}disabled title="Нет устройств для проверки"{% endif %}>{{icon('refresh')}}Проверить все</button></form><a class="btn primary" href="/devices/new">{{icon('plus')}}Добавить устройство</a>{% endcall %}

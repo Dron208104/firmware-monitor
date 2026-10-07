@@ -39,3 +39,4 @@ def test_equipment_icon_picker_offers_switch_and_router():
     assert 'name="icon_type" value="router"' in HTML
     assert ".device-icon-options" in picker
     assert "input:checked+span" in picker
+    assert "width:46px;height:46px;padding:0;border:0" in picker
