@@ -49,3 +49,11 @@ def test_device_description_stays_on_one_line_with_full_text_tooltip():
     assert "target?.dataset.description?.trim()" in DESCRIPTION_JS
     assert "tooltip.className='device-description-tooltip'" in DESCRIPTION_JS
     assert '{{d.vendor}} · {{d.model}}' not in HTML
+
+
+def test_dashboard_table_fits_viewport_without_horizontal_scroll():
+    assert ".dashboard-equipment .table-wrap{width:100%;max-width:100%;overflow-x:hidden!important}" in CSS
+    assert ".dashboard-equipment .table-wrap table{width:100%!important;min-width:0!important" in CSS
+    assert '.table-wrap th[data-column="checked"],.dashboard-equipment .equipment-layout .table-wrap td[data-column="checked"]{display:none!important}' in CSS
+    assert '.table-wrap th[data-column="connection"],.dashboard-equipment .equipment-layout .table-wrap td[data-column="connection"]{display:none!important}' in CSS
+    assert "body:has(.dashboard-page){overflow-x:hidden}" in CSS
