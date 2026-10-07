@@ -40,4 +40,20 @@
     filterToggle?.setAttribute('aria-expanded','true');
   }
   syncAdvancedState();
+  const activityPanel=document.querySelector('.activity-panel');
+  const equipmentPanel=document.querySelector('.dashboard-equipment');
+  if(activityPanel&&equipmentPanel){
+    const desktopLayout=matchMedia('(min-width:1551px)');
+    const syncActivityHeight=()=>{
+      if(!desktopLayout.matches){activityPanel.style.removeProperty('height');activityPanel.style.removeProperty('max-height');return}
+      const available=Math.max(280,innerHeight-activityPanel.getBoundingClientRect().top-20);
+      const height=Math.min(Math.ceil(equipmentPanel.getBoundingClientRect().height),available);
+      activityPanel.style.height=`${height}px`;
+      activityPanel.style.maxHeight=`${height}px`;
+    };
+    new ResizeObserver(syncActivityHeight).observe(equipmentPanel);
+    desktopLayout.addEventListener('change',syncActivityHeight);
+    addEventListener('resize',syncActivityHeight,{passive:true});
+    requestAnimationFrame(syncActivityHeight);
+  }
 })();

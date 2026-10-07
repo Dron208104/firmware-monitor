@@ -6,6 +6,7 @@ FOLDERS_CSS=(Path(__file__).parents[1]/"app"/"static"/"folders.css").read_text(e
 IDENTITY_CSS=(Path(__file__).parents[1]/"app"/"static"/"device-identity.css").read_text(encoding="utf-8")
 BLUE_CSS=(Path(__file__).parents[1]/"app"/"static"/"blue-theme.css").read_text(encoding="utf-8")
 TABLE_CSS=(Path(__file__).parents[1]/"app"/"static"/"device-table.css").read_text(encoding="utf-8")
+DASHBOARD_JS=(Path(__file__).parents[1]/"app"/"static"/"dashboard-ui.js").read_text(encoding="utf-8")
 
 def test_firmware_actions_depend_on_backend_urls():
     assert "if(device.download_url&&device.status==='Есть обновление')" in JS
@@ -144,3 +145,6 @@ def test_device_table_paginates_and_activity_feed_scrolls_inside_panel():
     assert 'if(resetPage)devicePage=1' in JS
     assert '.device-pagination[hidden]{display:none!important}' in TABLE_CSS
     assert '.activity-list{min-height:0!important;max-height:none!important;flex:1 1 auto;overflow-y:auto!important' in TABLE_CSS
+    assert "new ResizeObserver(syncActivityHeight).observe(equipmentPanel)" in DASHBOARD_JS
+    assert "Math.min(Math.ceil(equipmentPanel.getBoundingClientRect().height),available)" in DASHBOARD_JS
+    assert ".dashboard-workspace{align-items:start!important}" in TABLE_CSS
