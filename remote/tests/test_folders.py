@@ -127,6 +127,8 @@ def test_equipment_cosmetic_navigation_icons_and_counts():
         assert 'data:image/svg+xml' not in css
         assert ':has(.folder-more)' in css and '@media(hover:none)' in css
         assert '.folder-more{right:6px}' in css
+        assert '.folder-panel .folder-more{padding:0;border:1px solid #2a4059;border-radius:6px;background:#121d2b;color:#8fa8c2' in css
+        assert '/static/folders.css?v=20261001-30' in (Path(__file__).parents[1] / "app/templates/base.html").read_text(encoding="utf-8")
         assert 'visibility:hidden' in css
 
 
