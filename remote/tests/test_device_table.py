@@ -36,6 +36,8 @@ def test_vendor_model_and_versions_are_grouped_for_a_compact_dashboard():
     assert "device.available_version" in FIRMWARE_JS
     assert "arrow.textContent='→'" in FIRMWARE_JS
     assert "updateStatuses.has(device.status)" in FIRMWARE_JS
+    assert "{% if cls=='update' and d.available_version %}" in HTML
+    assert "{% elif d.available_version %}" not in HTML
 
 
 def test_device_row_uses_the_saved_equipment_icon():
