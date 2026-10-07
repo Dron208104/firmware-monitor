@@ -40,3 +40,6 @@ def test_equipment_icon_picker_offers_switch_and_router():
     assert ".device-icon-options" in picker
     assert "input:checked+span" in picker
     assert "width:46px;height:46px;padding:0;border:0" in picker
+    assert ".device-icon-options label:hover>span{border-color:#3b5677;background:#142235;box-shadow:none}" in picker
+    assert ".device-icon-options label:hover input:checked+span{border-color:#5b8cff;background:rgba(76,128,255,.16)" in picker
+    assert '/static/device-icon-picker.css?v=4' in (ROOT/"app"/"templates"/"base.html").read_text(encoding="utf-8")

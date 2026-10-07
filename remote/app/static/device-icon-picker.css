@@ -7,7 +7,11 @@
 .device-icon-options .icon{grid-row:1/3;width:46px;height:46px;padding:0;border:0;border-radius:0;background:transparent;color:#8fb0d1;stroke-width:1.2}
 .device-icon-options b{color:#dce7f3;font-size:13px}
 .device-icon-options small{margin:3px 0 0;color:#7087a1;font-size:11px}
+.device-icon-options label:hover>span{border-color:#3b5677;background:#142235;box-shadow:none}
+.device-icon-options label:hover>span .icon{color:#a8c2df}
 .device-icon-options input:checked+span{border-color:#4c80ff;background:rgba(76,128,255,.13);box-shadow:0 0 0 2px rgba(76,128,255,.12)}
 .device-icon-options input:checked+span .icon{color:#75a5ff}
+.device-icon-options label:hover input:checked+span{border-color:#5b8cff;background:rgba(76,128,255,.16);box-shadow:0 0 0 2px rgba(76,128,255,.12)}
+.device-icon-options label:hover input:checked+span .icon{color:#83adff}
 .device-icon-options input:focus-visible+span{outline:2px solid #78a1ff;outline-offset:2px}
 @media(max-width:560px){.device-icon-options{grid-template-columns:1fr}}
