@@ -7,12 +7,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 from app.main import app
 from app.db import SessionLocal
-from app.models import Device, EquipmentModel, EquipmentVendor, FirmwareEvent, FirmwareRelease, FirmwareSourceCheck
+from app.models import CheckHistory, Device, EquipmentModel, EquipmentVendor, FirmwareEvent, FirmwareRelease, FirmwareSourceCheck
 from app.versioning import compare_for_vendor, compare_manual
 
 def clean_devices():
     with SessionLocal() as db:
-        db.execute(delete(Device)); db.execute(delete(FirmwareEvent)); db.execute(delete(FirmwareSourceCheck)); db.execute(delete(FirmwareRelease)); db.commit()
+        db.execute(delete(CheckHistory)); db.execute(delete(Device)); db.execute(delete(FirmwareEvent)); db.execute(delete(FirmwareSourceCheck)); db.execute(delete(FirmwareRelease)); db.commit()
 def csrf(client): client.get("/"); return client.cookies.get("csrf")
 def catalog(slug="qtech"):
     with SessionLocal() as db:
@@ -140,6 +140,26 @@ def test_manual_device_is_excluded_from_scheduled_checks(monkeypatch):
         monkeypatch.setattr(main_module,"check_model_source",fake_check)
         asyncio.run(main_module.scheduled_checks())
         assert len(checked)==1
+
+def test_manual_device_can_adopt_latest_discovered_version():
+    clean_devices()
+    with TestClient(app) as client:
+        token=csrf(client); data=payload(version_source="manual",installed_version="1.0",community=None); data["csrf"]=token
+        created=client.post("/api/devices",json=data); assert created.status_code==201
+        device_id=created.json()["id"]; _,model_id=catalog()
+        with SessionLocal() as db:
+            db.add(FirmwareRelease(model_id=model_id,version="2.0",firmware_page_url="https://example.com/firmware")); db.commit()
+        adopted=client.post(f"/api/devices/{device_id}/adopt-latest-version",json={"csrf":token})
+        assert adopted.status_code==200 and adopted.json()["installed_version"]=="2.0"
+        assert adopted.json()["available_version"]=="2.0" and adopted.json()["status"]=="Актуально"
+        assert adopted.json()["last_checked_at"] is not None
+        with SessionLocal() as db:
+            history=db.scalar(select(CheckHistory).where(CheckHistory.device_id==device_id).order_by(CheckHistory.id.desc()))
+            assert history and history.installed_version=="2.0" and "актуализирована вручную" in history.details
+        already_current=client.post(f"/api/devices/{device_id}/adopt-latest-version",json={"csrf":token})
+        assert already_current.status_code==409 and "уже актуально" in already_current.json()["error"]
+        repeated=client.post(f"/api/devices/{device_id}/adopt-latest-version",json={"csrf":token,"version":"3.0"})
+        assert repeated.status_code==422
 
 def test_ipv4_duplicate_and_snmp_validation():
     clean_devices()

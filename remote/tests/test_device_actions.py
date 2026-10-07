@@ -37,6 +37,15 @@ def test_primary_and_secondary_actions_are_separated():
     assert "e.key==='Escape'" in JS
     assert "menu-danger" in JS
 
+def test_manual_device_can_adopt_latest_version_from_more_menu():
+    base=(Path(__file__).parents[1]/"app/templates/base.html").read_text(encoding="utf-8")
+    assert "device.version_source==='manual'&&device.available_version&&device.status==='Есть обновление'" in JS
+    assert "Актуализировать до ${device.available_version}" in JS
+    assert "[data-adopt-latest]" in JS
+    assert "adopt-latest-version" in JS
+    assert "Подтвердите, что на устройстве" in JS
+    assert '/static/app.js?v=20261007-45' in base
+
 def test_changelog_localization_observer_does_not_loop_forever():
     assert "if(label.textContent!=='Изменения')" in JS
 

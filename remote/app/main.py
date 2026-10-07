@@ -556,6 +556,22 @@ async def api_update_manual_versions(device_id:int,request:Request,db:Session=De
     device.installed_version=installed; device.available_version=None; device.status=compare_for_vendor(device.vendor,installed,release.version) if release else "Источник не настроен"; db.commit(); db.refresh(device)
     return serialize(device,db)
 
+@app.post("/api/devices/{device_id}/adopt-latest-version",response_model=DeviceOut)
+async def api_adopt_latest_version(device_id:int,request:Request,db:Session=Depends(get_db)):
+    data=await request.json(); verify(request,data.get("csrf")); device=db.get(Device,device_id)
+    if not device: raise HTTPException(404,"Устройство не найдено")
+    if set(data)-{"csrf"}: return JSONResponse(status_code=422,content={"error":"Версия выбирается из последней проверки производителя"})
+    if device.installed_version_source!="manual": return JSONResponse(status_code=409,content={"error":"Версия этого устройства получается по SNMP"})
+    if not device.catalog_model_id: return JSONResponse(status_code=409,content={"error":"Для устройства не выбрана модель из справочника"})
+    release=latest_release(db,device.catalog_model_id)
+    if not release: return JSONResponse(status_code=409,content={"error":"Актуальная версия производителя ещё не найдена"})
+    if device.installed_version and compare_for_vendor(device.vendor,device.installed_version,release.version)!="Есть обновление": return JSONResponse(status_code=409,content={"error":"Устройство уже актуально или переход к найденной версии не подтверждён"})
+    previous=device.installed_version
+    device.installed_version=release.version; device.available_version=release.version; device.status=compare_for_vendor(device.vendor,release.version,release.version); device.last_checked_at=now(); device.last_error=None
+    db.add(CheckHistory(device_id=device.id,installed_version=release.version,available_version=release.version,status=device.status,details=f"Установленная версия актуализирована вручную: {previous or 'не указана'} → {release.version}"))
+    audit(db,request.state.user,"device.version_adopt",device.name,f"{previous or 'none'} -> {release.version}")
+    db.commit(); db.refresh(device); return serialize(device,db)
+
 @app.get("/devices/new",response_class=HTMLResponse)
 @app.get("/devices/{device_id}/edit",response_class=HTMLResponse)
 def device_form(request:Request,device_id:int|None=None,db:Session=Depends(get_db)):
