@@ -57,3 +57,8 @@ def test_dashboard_table_fits_viewport_without_horizontal_scroll():
     assert '.table-wrap th[data-column="checked"],.dashboard-equipment .equipment-layout .table-wrap td[data-column="checked"]{display:none!important}' in CSS
     assert '.table-wrap th[data-column="connection"],.dashboard-equipment .equipment-layout .table-wrap td[data-column="connection"]{display:none!important}' in CSS
     assert "body:has(.dashboard-page){overflow-x:hidden}" in CSS
+
+
+def test_folder_counters_use_consistent_blue_dashboard_palette():
+    assert ".dashboard-equipment .folder-item b{border:1px solid #2a4059!important;background:#182638!important;color:#91a8c0!important" in CSS
+    assert ".dashboard-equipment .folder-item>button.active b{border-color:rgba(86,137,255,.4)!important" in CSS
