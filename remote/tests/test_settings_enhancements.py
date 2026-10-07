@@ -174,6 +174,16 @@ def test_smtp_save_test_delivery_and_secret_masking(isolated_client, monkeypatch
     assert client.post("/api/settings/smtp/test", json={"csrf": token(client)}).status_code == 200
 
 
+def test_smtp_form_rows_are_ordered_in_complete_pairs(isolated_client):
+    client, _sessions = isolated_client
+    page = client.get("/settings?tab=notifications").text
+    sender_name = page.index('name="sender_name"')
+    reminders = page.index('name="reminder_count"')
+    recipients = page.index('name="recipients"')
+    assert sender_name < reminders < recipients
+    assert 'class="smtp-wide">Получатели уведомлений' in page
+
+
 def test_firmware_reminders_are_limited_and_persisted(isolated_client, monkeypatch):
     _client, sessions = isolated_client
     queued = []
