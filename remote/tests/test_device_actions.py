@@ -157,7 +157,7 @@ def test_device_table_paginates_and_activity_feed_scrolls_inside_panel():
 def test_shared_panel_table_headings_match_project_palette():
     base=(Path(__file__).parents[1]/"app/templates/base.html").read_text(encoding="utf-8")
     assert ".panel>.table-wrap thead th{height:40px;background:#0f1824;color:#7f94ad;border-color:var(--line-soft)" in BLUE_CSS
-    assert '/static/blue-theme.css?v=24' in base
+    assert '/static/blue-theme.css?v=25' in base
 
 
 def test_dashboard_metrics_use_refined_dedicated_icons():
@@ -171,4 +171,4 @@ def test_dashboard_metrics_use_refined_dedicated_icons():
     assert 'data-has-updates="{{\'true\' if counts.updates else \'false\'}}"' in html
     assert ".metrics article:hover{border-color:var(--line)!important" in BLUE_CSS
     assert "metric-indicator" not in html
-    assert '/static/blue-theme.css?v=24' in base
+    assert '/static/blue-theme.css?v=25' in base

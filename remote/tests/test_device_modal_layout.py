@@ -43,3 +43,13 @@ def test_equipment_icon_picker_offers_switch_and_router():
     assert ".device-icon-options label:hover>span{border-color:#3b5677;background:#142235;box-shadow:none}" in picker
     assert ".device-icon-options label:hover input:checked+span{border-color:#5b8cff;background:rgba(76,128,255,.16)" in picker
     assert '/static/device-icon-picker.css?v=4' in (ROOT/"app"/"templates"/"base.html").read_text(encoding="utf-8")
+
+
+def test_device_modal_uses_shared_blue_application_style():
+    blue=(ROOT/"app"/"static"/"blue-theme.css").read_text(encoding="utf-8")
+    base=(ROOT/"app"/"templates"/"base.html").read_text(encoding="utf-8")
+    assert "#device-modal .modal-card{width:min(760px,100%);border:1px solid #2a3d54" in blue
+    assert "#device-modal .source-tabs input:checked+span" in blue
+    assert "#device-modal .device-icon-options label>span>b{color:#dce7f3!important}" in blue
+    assert "#device-modal .modal-card footer" in blue
+    assert '/static/blue-theme.css?v=25' in base
