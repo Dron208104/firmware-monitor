@@ -134,3 +134,13 @@ def test_equipment_no_results_can_reset_filters_and_check_all_is_disabled_when_e
     assert "activeFolder='all';search.value='';vendor.value='';status.value=''" in JS
     assert '[data-total-devices="0"] #filtered-empty{display:none!important}' in FOLDERS_CSS
     assert '[data-total-devices="0"] #devices-empty{display:block!important}' in FOLDERS_CSS
+
+def test_device_table_paginates_and_activity_feed_scrolls_inside_panel():
+    html=(Path(__file__).parents[1]/"app"/"templates"/"dashboard.html").read_text(encoding="utf-8")
+    assert 'data-device-pagination' in html
+    assert 'data-device-page-previous' in html and 'data-device-page-next' in html
+    assert 'const devicePageSize=6' in JS
+    assert 'pagedDeviceRows.slice(start,end)' in JS
+    assert 'if(resetPage)devicePage=1' in JS
+    assert '.device-pagination[hidden]{display:none!important}' in TABLE_CSS
+    assert '.activity-list{min-height:0!important;max-height:none!important;flex:1 1 auto;overflow-y:auto!important' in TABLE_CSS
