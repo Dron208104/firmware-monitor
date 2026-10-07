@@ -7,7 +7,7 @@
 <form method="post" action="/check-all"><input type="hidden" name="csrf" value="{{csrf}}"><button class="btn secondary" {% if counts.total==0 %}disabled title="Нет устройств для проверки"{% endif %}>{{icon('refresh')}}Проверить все</button></form><a class="btn primary" href="/devices/new">{{icon('plus')}}Добавить устройство</a>{% endcall %}
 <section class="metrics" aria-label="Сводка оборудования">
   <article><i>{{icon('server')}}</i><span><small>Всего устройств</small><b>{{counts.total}}</b></span></article>
-  <button class="metric-card metric-updates" type="button" data-quick-filter="updates" aria-pressed="false"><i>{{icon('refresh')}}</i><span><small>Доступны обновления</small><b>{{counts.updates}}</b></span></button>
+  <article class="metric-updates"><i>{{icon('refresh')}}</i><span><small>Доступны обновления</small><b>{{counts.updates}}</b></span></article>
   <article class="green"><i>{{icon('check')}}</i><span><small>Версии актуальны</small><b>{{counts.current}}</b></span></article>
   <article class="blue"><i>{{icon('alert')}}</i><span><small>Требуют проверки</small><b>{{counts.review}}</b></span></article>
 </section>
