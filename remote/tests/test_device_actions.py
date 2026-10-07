@@ -152,3 +152,9 @@ def test_device_table_paginates_and_activity_feed_scrolls_inside_panel():
     assert "workspace?.style.setProperty('--dashboard-row-height'" in DASHBOARD_JS
     assert ".dashboard-workspace{align-items:start!important}" in TABLE_CSS
     assert "height:var(--dashboard-row-height,516px)!important" in TABLE_CSS
+
+
+def test_shared_panel_table_headings_match_project_palette():
+    base=(Path(__file__).parents[1]/"app/templates/base.html").read_text(encoding="utf-8")
+    assert ".panel>.table-wrap thead th{height:40px;background:#0f1824;color:#7f94ad;border-color:var(--line-soft)" in BLUE_CSS
+    assert '/static/blue-theme.css?v=22' in base
