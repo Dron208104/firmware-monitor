@@ -180,7 +180,12 @@ def test_dashboard_metrics_use_refined_dedicated_icons():
     assert html.count('class="icon metric-icon"') == 4
     assert ".metrics .metric-icon{width:28px;height:28px;stroke-width:1.5}" in BLUE_CSS
     assert 'data-has-updates="{{\'true\' if counts.updates else \'false\'}}"' in html
-    assert ".metrics article:hover{border-color:var(--line)!important" in BLUE_CSS
+    static_metrics=(root/"app/static/metric-cards-static.css").read_text(encoding="utf-8")
+    assert '/static/metric-cards-static.css?v=1' in html
+    assert '.metrics article:hover' in static_metrics
+    assert '.metric-updates[data-has-updates="true"]:hover' in static_metrics
+    assert 'border-color: var(--line) !important' in static_metrics
+    assert 'transform: none !important' in static_metrics
     assert "metric-indicator" not in html
     assert '/static/blue-theme.css?v=25' in base
 
