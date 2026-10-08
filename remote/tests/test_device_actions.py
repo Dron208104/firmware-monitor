@@ -181,3 +181,17 @@ def test_dashboard_metrics_use_refined_dedicated_icons():
     assert ".metrics article:hover{border-color:var(--line)!important" in BLUE_CSS
     assert "metric-indicator" not in html
     assert '/static/blue-theme.css?v=25' in base
+
+
+def test_device_copy_action_reuses_add_form_and_clears_identity_and_secrets():
+    root=Path(__file__).parents[1]
+    js=(root/"app/static/device-copy.js").read_text(encoding="utf-8")
+    html=(root/"app/templates/dashboard.html").read_text(encoding="utf-8")
+    assert '/static/device-copy.js?v=1' in html
+    assert 'Копировать устройство' in js
+    assert '/copy-template' in js
+    assert "form.elements.name.value=''" in js
+    assert "form.elements.address.value=''" in js
+    assert "form.elements.community.value=''" in js
+    assert "form.elements.auth_password.value=''" in js
+    assert "form.elements.privacy_password.value=''" in js

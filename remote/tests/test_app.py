@@ -37,6 +37,27 @@ def test_successful_creation_and_no_secrets():
         raw=str(response.json())+str(client.get("/api/devices").json())
         assert "private-value" not in raw and "community" not in raw and "password" not in raw
 
+def test_device_copy_template_prefills_configuration_without_identity_or_secrets():
+    clean_devices()
+    with TestClient(app) as client:
+        data=payload(icon_type="router",description="Копируемая конфигурация",snmp_port=1161,snmp_version="3",snmpv3_username="monitor",security_level="authPriv",auth_protocol="SHA",auth_password="auth-secret",privacy_protocol="AES",privacy_password="privacy-secret")
+        data["csrf"]=csrf(client)
+        created=client.post("/api/devices",json=data)
+        assert created.status_code==201
+
+        response=client.get(f"/api/devices/{created.json()['id']}/copy-template")
+        assert response.status_code==200
+        template=response.json()
+        assert template["icon_type"]=="router"
+        assert template["vendor_id"]==data["vendor_id"]
+        assert template["model_id"]==data["model_id"]
+        assert template["snmp_port"]==1161
+        assert template["snmpv3_username"]=="monitor"
+        assert template["description"]=="Копируемая конфигурация"
+        assert not ({"name","address","ip_address","community","auth_password","privacy_password","credentials_encrypted"} & template.keys())
+        assert "private-value" not in str(template)
+        assert "auth-secret" not in str(template) and "privacy-secret" not in str(template)
+
 def test_device_icon_type_is_persisted_and_validated():
     clean_devices()
     with TestClient(app) as client:

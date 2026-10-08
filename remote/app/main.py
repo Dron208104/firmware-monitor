@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from .config import settings
-from .access_control import is_system_admin, normalize_folder_ids, replace_user_folders, scope_devices, visible_folder_ids
+from .access_control import is_system_admin, normalize_folder_ids, replace_user_folders, require_visible_device, scope_devices, visible_folder_ids
 from .connection_profiles import apply_profile_data, profile_payload
 from .db import Base, SessionLocal, engine, get_db
 from .migrations import migrate_sqlite
@@ -353,6 +353,30 @@ def equipment_report_pdf(request:Request,db:Session=Depends(get_db)):
 
 @app.get("/api/devices",response_model=list[DeviceOut])
 def api_devices(request:Request,db:Session=Depends(get_db)): return [serialize(x,db) for x in db.scalars(scope_devices(select(Device),db,getattr(request.state,"user",None)).order_by(Device.name)).all()]
+
+@app.get("/api/devices/{device_id}/copy-template")
+def api_device_copy_template(device_id:int,request:Request,db:Session=Depends(get_db)):
+    device=require_visible_device(db,getattr(request.state,"user",None),device_id)
+    catalog_model=device.catalog_model
+    return {
+        "icon_type":device.icon_type or "switch",
+        "vendor_id":catalog_model.vendor_id if catalog_model else None,
+        "model_id":device.catalog_model_id,
+        "custom_model":None if catalog_model else device.model,
+        "hardware_revision":device.hardware_revision,
+        "version_source":device.installed_version_source,
+        "installed_version":device.installed_version if device.installed_version_source=="manual" else None,
+        "folder_id":device.folder_id,
+        "profile_id":device.profile_id,
+        "snmp_version":device.snmp_version or "2c",
+        "snmp_port":device.snmp_port or 161,
+        "snmpv3_username":device.snmpv3_username or "",
+        "security_level":device.security_level or "noAuthNoPriv",
+        "auth_protocol":device.auth_protocol or "SHA",
+        "privacy_protocol":device.privacy_protocol or "AES",
+        "description":device.description or "",
+        "auto_check":bool(device.auto_check),
+    }
 
 def vendor_json(v): return {"id":v.id,"name":v.name,"slug":v.slug,"enabled":v.enabled}
 def model_json(m): return {"id":m.id,"vendor_id":m.vendor_id,"vendor":m.vendor.name,"name":m.name,"display_name":m.display_name or f"{m.vendor.name} {m.name}","normalized_name":m.normalized_name,"series":m.series,"firmware_family":m.firmware_family,"compatibility_group":m.compatibility_group,"product_page_url":m.product_page_url,"device_type":m.device_type,"installed_version_method":m.installed_version_method,"version_oid":m.version_oid,"installed_version_pattern":m.installed_version_pattern,"firmware_source_id":m.firmware_source_id,"hardware_revision_required":m.hardware_revision_required,"hardware_revisions":[{"display_revision":r.display_revision,"provider_revision":r.provider_revision,"firmware_path":r.firmware_path} for r in m.hardware_revisions if r.enabled],"model_requires_clarification":m.model_requires_clarification,"support_status":m.support_status,"os_family":m.os_family,"architecture":m.architecture,"update_channel":m.update_channel,"enabled":m.enabled,"snmp_profile":json.loads(m.snmp_profile) if m.snmp_profile else None,"latest_check_status":m.latest_check_status,"latest_checked_at":m.latest_checked_at.isoformat() if m.latest_checked_at else None,"created_at":m.created_at.isoformat() if m.created_at else None,"updated_at":m.updated_at.isoformat() if m.updated_at else None}
