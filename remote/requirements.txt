@@ -13,3 +13,5 @@ netmiko==4.6.0
 pydantic-settings==2.10.1
 packaging==25.0
 argon2-cffi==25.1.0
+openpyxl==3.1.5
+reportlab==4.4.4

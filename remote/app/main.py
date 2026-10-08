@@ -1,8 +1,9 @@
 import asyncio, ipaddress, json, logging
+from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.datastructures import MutableHeaders
@@ -25,6 +26,7 @@ from .security import csrf_token, decrypt_secret, encrypt_secret, validate_encry
 from .source_status import source_status_view
 from .versioning import compare_for_vendor
 from .firmware.service import check_model_source, latest_release, queue_firmware_reminders
+from .reports import build_equipment_pdf, build_equipment_xlsx
 from .auth import SESSION_COOKIE, active_admin_count, audit, clear_login_failures, create_initial_admin, create_session, hash_password, login_allowed, normalize_username, rate_key, record_login_failure, revoke_session, session_user, token_hash, verify_password, verify_user_credentials
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -307,6 +309,47 @@ def dashboard(request:Request,q:str="",vendor:str="",status:str="",db:Session=De
         event_rows.extend({"kind":"check","title":"Проверка завершена" if not history.details else "Ошибка проверки","description":f"{device.name} · {history.status}","device":device.name,"created_at":history.checked_at,"severity":"error" if history.details else ("success" if history.status in current_statuses else "warning" if history.status in update_statuses else "info")} for history,device in check_rows)
     recent_events=sorted(event_rows,key=lambda item:item["created_at"],reverse=True)[:10]
     return page(request,"dashboard.html",devices=devices,counts=counts,attention=updates+problems,attention_updates=updates,attention_problems=problems,recent_events=recent_events,q=q,vendor=vendor,status=status)
+
+def _equipment_report_rows(request:Request,db:Session):
+    devices=db.scalars(scope_devices(select(Device),db,getattr(request.state,"user",None)).order_by(Device.name)).all()
+    rows=[]
+    for device in devices:
+        release=latest_release(db,device.catalog_model_id) if device.catalog_model_id else None
+        if device.catalog_model and device.catalog_model.model_requires_clarification:release=None
+        folder=device.folder;folder_parts=[];seen=set()
+        while folder and folder.id not in seen:
+            seen.add(folder.id);folder_parts.append(folder.name);folder=folder.parent
+        checked=device.last_checked_at
+        rows.append({
+            "folder":" / ".join(reversed(folder_parts)) if folder_parts else "Без каталога",
+            "name":device.name,
+            "device_type":"Маршрутизатор" if device.icon_type=="router" else "Коммутатор",
+            "ip_address":device.ip_address,
+            "vendor":device.vendor,
+            "model":device.model+(f" (рев. {device.hardware_revision})" if device.hardware_revision else ""),
+            "installed_version":device.installed_version or "—",
+            "available_version":release.version if release else "—",
+            "version_source":"SNMP" if device.installed_version_source=="snmp" else "Вручную",
+            "status":device.status,
+            "last_checked_at":checked.replace(tzinfo=None) if checked and checked.tzinfo else checked,
+            "last_checked_at_display":checked.strftime("%d.%m.%Y %H:%M") if checked else "Не проверялось",
+            "description":device.description or "",
+        })
+    return rows
+
+@app.get("/reports/equipment.xlsx")
+def equipment_report_xlsx(request:Request,db:Session=Depends(get_db)):
+    generated_at=datetime.now()
+    content=build_equipment_xlsx(_equipment_report_rows(request,db),generated_at)
+    filename=f"firmware-monitor-equipment-{generated_at:%Y-%m-%d}.xlsx"
+    return Response(content,media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",headers={"Content-Disposition":f'attachment; filename="{filename}"'})
+
+@app.get("/reports/equipment.pdf")
+def equipment_report_pdf(request:Request,db:Session=Depends(get_db)):
+    generated_at=datetime.now()
+    content=build_equipment_pdf(_equipment_report_rows(request,db),generated_at)
+    filename=f"firmware-monitor-equipment-{generated_at:%Y-%m-%d}.pdf"
+    return Response(content,media_type="application/pdf",headers={"Content-Disposition":f'attachment; filename="{filename}"'})
 
 @app.get("/api/devices",response_model=list[DeviceOut])
 def api_devices(request:Request,db:Session=Depends(get_db)): return [serialize(x,db) for x in db.scalars(scope_devices(select(Device),db,getattr(request.state,"user",None)).order_by(Device.name)).all()]

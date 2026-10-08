@@ -1,6 +1,8 @@
 from datetime import timedelta
+from io import BytesIO
 from pathlib import Path
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 from sqlalchemy import delete, select
 
 from app.auth import SESSION_COOKIE, hash_password, token_hash, utcnow
@@ -113,6 +115,10 @@ def test_viewer_sees_only_assigned_folder_subtrees(monkeypatch):
         assert {item["name"] for item in devices}=={"Visible","Child"}
         assert {item["id"] for item in folders}=={allowed_id,child_id}
         assert "Hidden" not in page and "Visible" in page
+        report=client.get("/reports/equipment.xlsx")
+        sheet=load_workbook(BytesIO(report.content),read_only=True)["Оборудование"]
+        report_names={sheet.cell(row,3).value for row in range(7,sheet.max_row+1)}
+        assert report.status_code==200 and report_names=={"Visible","Child"}
 
 def test_admin_can_assign_viewer_folders(monkeypatch):
     clean_auth();add_user();monkeypatch.setattr(settings,"auth_disabled",False)
