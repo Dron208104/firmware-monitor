@@ -4,6 +4,7 @@ ROOT=Path(__file__).parents[1]
 CSS=(ROOT/"app"/"static"/"version-source.css").read_text(encoding="utf-8")
 LAYOUT=(ROOT/"app"/"static"/"modal-layout.css").read_text(encoding="utf-8")
 HTML=(ROOT/"app"/"templates"/"device_modal.html").read_text(encoding="utf-8")
+SOURCE_CHOICE=(ROOT/"app"/"static"/"source-choice-fix.css").read_text(encoding="utf-8")
 
 def test_modal_uses_viewport_safe_three_part_layout():
     assert "max-height:calc(100dvh - 32px)" in CSS
@@ -15,6 +16,14 @@ def test_modal_uses_viewport_safe_three_part_layout():
 def test_source_switch_is_full_width_and_equal_columns():
     assert ".source-tabs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)" in CSS
     assert "width:100%;max-width:none" in CSS
+
+def test_source_switch_click_area_is_limited_to_visible_buttons():
+    assert '<fieldset class="wide source-choice">' in HTML
+    assert '<label class="wide">Источник установленной версии' not in HTML
+    assert ".source-tabs label{position:relative;display:block" in SOURCE_CHOICE
+    assert "pointer-events:none" in SOURCE_CHOICE
+    assert ".source-tabs span{width:100%;box-sizing:border-box}" in SOURCE_CHOICE
+    assert '/static/source-choice-fix.css?v=1' in HTML
 
 def test_mobile_layout_has_safe_inset_and_single_column():
     assert "@media(max-width:639px)" in CSS
