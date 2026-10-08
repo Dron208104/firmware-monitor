@@ -44,7 +44,7 @@ def test_manual_device_can_adopt_latest_version_from_more_menu():
     assert "[data-adopt-latest]" in JS
     assert "adopt-latest-version" in JS
     assert "Подтвердите, что на устройстве" in JS
-    assert '/static/app.js?v=20261007-45' in base
+    assert '/static/app.js?v=20261008-50' in base
 
 def test_changelog_localization_observer_does_not_loop_forever():
     assert "if(label.textContent!=='Изменения')" in JS
@@ -154,6 +154,8 @@ def test_device_table_paginates_and_activity_feed_scrolls_inside_panel():
     assert 'const devicePageSize=6' in JS
     assert 'pagedDeviceRows.slice(start,end)' in JS
     assert 'if(resetPage)devicePage=1' in JS
+    assert "new URLSearchParams(location.search).get('device_page')" in JS
+    assert 'location.href=devicePageUrl(requested)' in JS
     assert '.device-pagination[hidden]{display:none!important}' in TABLE_CSS
     assert '.activity-list{min-height:0!important;max-height:none!important;flex:1 1 auto;overflow-y:auto!important' in TABLE_CSS
     assert "new ResizeObserver(syncActivityHeight).observe(equipmentPanel)" in DASHBOARD_JS
