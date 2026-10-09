@@ -225,3 +225,31 @@ def test_smtp_dns_failure_is_sanitized(monkeypatch):
     with pytest.raises(mailer.MailDeliveryError, match="Не удалось подключиться") as exc:
         mailer._send_email({"host": "private-host.example", "port": 25, "encryption": "none", "username": "", "sender_email": "from@example.com", "sender_name": "Monitor", "recipients": ["to@example.com"]}, "", "Test", "Body")
     assert "private-host.example" not in str(exc.value)
+
+
+def test_smtp_report_contains_plain_text_and_html_alternative(monkeypatch):
+    messages = []
+
+    class Client:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return None
+        def ehlo(self):
+            return 250, b"ok"
+        def login(self, *args):
+            return 235, b"ok"
+        def send_message(self, message):
+            messages.append(message)
+
+    monkeypatch.setattr(mailer.socket, "getaddrinfo", lambda *args, **kwargs: [(2, 1, 6, "", ("8.8.8.8", 465))])
+    monkeypatch.setattr(mailer.smtplib, "SMTP_SSL", Client)
+    mailer._send_email(
+        {"host": "smtp.example.com", "port": 465, "encryption": "ssl", "username": "mailer", "sender_email": "from@example.com", "sender_name": "Monitor", "recipients": ["to@example.com"]},
+        "secret", "Report", "Plain report", "<html><body><table><tr><td>Report</td></tr></table></body></html>",
+    )
+    assert len(messages) == 1
+    assert messages[0].get_content_type() == "multipart/alternative"
+    assert [part.get_content_type() for part in messages[0].iter_parts()] == ["text/plain", "text/html"]

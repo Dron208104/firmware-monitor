@@ -147,13 +147,15 @@ def save_smtp_config(db: Session, data: dict) -> dict:
     return public_smtp_config(db)
 
 
-def _send_email(config: dict, password: str, subject: str, body: str) -> None:
+def _send_email(config: dict, password: str, subject: str, body: str, html_body: str | None = None) -> None:
     _validate_smtp_target(config["host"],config["port"])
     message = EmailMessage()
     message["From"] = formataddr((config["sender_name"], config["sender_email"]))
     message["To"] = ", ".join(config["recipients"])
     message["Subject"] = subject
     message.set_content(body)
+    if html_body:
+        message.add_alternative(html_body, subtype="html")
     context = ssl.create_default_context()
     try:
         if config["encryption"] == "ssl":
@@ -205,7 +207,7 @@ def send_test_email_from_store() -> None:
         send_test_email(db)
 
 
-def send_selected_notification(kind: str, subject: str, body: str) -> bool:
+def send_selected_notification(kind: str, subject: str, body: str, html_body: str | None = None) -> bool:
     from .db import SessionLocal
 
     with SessionLocal() as db:
@@ -216,18 +218,21 @@ def send_selected_notification(kind: str, subject: str, body: str) -> bool:
             password = decrypt_secret(_setting(db, PASSWORD_KEY)) if _setting(db, PASSWORD_KEY) else ""
         except Exception as exc:
             raise RuntimeError("Настройка почты недоступна") from exc
-    _send_email(config, password, subject, body)
+    if html_body:
+        _send_email(config, password, subject, body, html_body)
+    else:
+        _send_email(config, password, subject, body)
     return True
 
 
-def queue_notification(kind: str, subject: str, body: str) -> None:
+def queue_notification(kind: str, subject: str, body: str, html_body: str | None = None) -> None:
     if not _pending.acquire(blocking=False):
         log.warning("Mail queue is full")
         return
 
     def deliver() -> None:
         try:
-            send_selected_notification(kind, subject, body)
+            send_selected_notification(kind, subject, body, html_body)
         except Exception:
             log.warning("Mail delivery failed for event type %s", kind)
         finally:

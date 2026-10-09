@@ -148,19 +148,43 @@ def test_vendor_specific_version_comparison():
     assert compare_for_vendor("Zyxel", "1", "V2.90(AAHH.2)C0") == "Есть обновление"
     assert compare_for_vendor("Zyxel", "V2.90(AAHH.2)C0", "2.90(AAHH.2)C0") == "Актуально"
 
-def test_manual_device_is_excluded_from_scheduled_checks(monkeypatch):
+def test_manual_device_skips_snmp_but_refreshes_source_on_schedule(monkeypatch):
     import asyncio, app.main as main_module
     clean_devices()
     with TestClient(app) as client:
         token=csrf(client)
-        manual=payload(version_source="manual",installed_version="1.0",community=None); manual["csrf"]=token
-        client.post("/api/devices",json=manual)
-        snmp=payload(address="192.0.2.11"); snmp["csrf"]=token; snmp_id=client.post("/api/devices",json=snmp).json()["id"]
-        checked=[]
+        manual=payload(name="<Core&>",version_source="manual",installed_version="1.0",community=None); manual["csrf"]=token
+        device_id=client.post("/api/devices",json=manual).json()["id"]
+        with SessionLocal() as db:
+            device=db.get(Device,device_id)
+            device.status="Есть обновление"
+            db.add(FirmwareRelease(model_id=device.catalog_model_id,version="2.0",firmware_page_url="https://example.com/firmware"))
+            db.commit()
+        polled=[]; checked=[]; notifications=[]
+        async def fake_poll(_db,device): polled.append(device.id)
         async def fake_check(_db,model): checked.append(model.id)
+        monkeypatch.setattr(main_module,"poll_installed_version",fake_poll)
         monkeypatch.setattr(main_module,"check_model_source",fake_check)
+        monkeypatch.setattr(main_module.mailer,"queue_notification",lambda *args: notifications.append(args))
         asyncio.run(main_module.scheduled_checks())
+        assert polled==[]
         assert len(checked)==1
+        assert notifications and notifications[-1][0]=="auto_check_result"
+        assert "Обнаружено оборудование без актуальной прошивки" in notifications[-1][2]
+        assert "Требуют обновления: 1" in notifications[-1][2]
+        assert "<Core&> | 192.0.2.10 |" in notifications[-1][2]
+        assert "установлена: 1.0 | доступна: 2.0" in notifications[-1][2]
+        assert '<table role="presentation"' in notifications[-1][3]
+        assert "&lt;Core&amp;&gt;" in notifications[-1][3]
+        assert "<Core&>" not in notifications[-1][3]
+        assert ">Требуют обновления<" not in notifications[-1][3]
+        assert ">Моделей с обновлением<" not in notifications[-1][3]
+        with SessionLocal() as db:
+            db.get(Device,device_id).status="Актуально"
+            db.commit()
+        notifications.clear()
+        asyncio.run(main_module.scheduled_checks())
+        assert notifications==[]
 
 def test_manual_device_can_adopt_latest_discovered_version():
     clean_devices()

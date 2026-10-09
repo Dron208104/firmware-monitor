@@ -1,6 +1,7 @@
 import asyncio, ipaddress, json, logging
 from datetime import datetime
 from contextlib import asynccontextmanager
+from html import escape
 from pathlib import Path
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -76,28 +77,93 @@ class SecurityHeadersMiddleware:
             await send(message)
         return await self.app(scope,receive,secured_send)
 
+def automatic_check_report_html(devices,models,releases,finished_at):
+    rows=[]
+    status_colors={
+        "Актуально":("#34d399","#0d2d29","#19594d"),
+        "Есть обновление":("#fbbf24","#302817","#6b5420"),
+    }
+    for device in devices:
+        model=models.get(device.catalog_model_id)
+        release=releases.get(device.catalog_model_id)
+        model_name=f"{model.vendor.name} {model.name}" if model else f"{device.vendor} {device.model}"
+        color,background,border=status_colors.get(device.status,("#60a5fa","#142743","#294f86"))
+        rows.append(
+            '<tr>'
+            f'<td style="padding:14px 12px;border-top:1px solid #24364d;color:#f8fafc;font-weight:700">{escape(device.name)}</td>'
+            f'<td style="padding:14px 12px;border-top:1px solid #24364d;color:#b9c9dc;font-family:Consolas,monospace;white-space:nowrap">{escape(device.ip_address)}</td>'
+            f'<td style="padding:14px 12px;border-top:1px solid #24364d;color:#d8e3f0">{escape(model_name)}</td>'
+            f'<td style="padding:14px 12px;border-top:1px solid #24364d;color:#d8e3f0;font-family:Consolas,monospace">{escape(device.installed_version or "Не указана")}</td>'
+            f'<td style="padding:14px 12px;border-top:1px solid #24364d;color:#d8e3f0;font-family:Consolas,monospace">{escape(release.version if release else "Не найдена")}</td>'
+            f'<td style="padding:14px 12px;border-top:1px solid #24364d"><span style="display:inline-block;padding:5px 9px;border:1px solid {border};border-radius:999px;background:{background};color:{color};font-size:12px;font-weight:700;white-space:nowrap">{escape(device.status or "Не указан")}</span></td>'
+            '</tr>'
+        )
+    return (
+        '<!doctype html><html lang="ru"><body style="margin:0;padding:0;background:#0b1018;color:#f8fafc;font-family:Arial,sans-serif">'
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#0b1018"><tr><td align="center" style="padding:32px 16px">'
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:1040px;background:#101a28;border:1px solid #263a52;border-radius:16px;overflow:hidden">'
+        '<tr><td style="padding:28px 30px;background:#132238;border-bottom:1px solid #2d4562">'
+        '<div style="color:#60a5fa;font-size:11px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase">Firmware Monitor</div>'
+        '<h1 style="margin:8px 0 6px;color:#ffffff;font-size:26px;line-height:1.25">Обнаружено оборудование без актуальной прошивки</h1>'
+        f'<div style="color:#9fb4cc;font-size:14px">Завершена {finished_at.strftime("%d.%m.%Y в %H:%M")}</div>'
+        '</td></tr><tr><td style="padding:24px 30px 30px">'
+        '<table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0;background:#0d1724;border:1px solid #263a52;border-radius:12px;overflow:hidden">'
+        '<thead><tr style="background:#15243a">'
+        '<th align="left" style="padding:11px 12px;color:#8fb0d4;font-size:11px;letter-spacing:.6px">УСТРОЙСТВО</th>'
+        '<th align="left" style="padding:11px 12px;color:#8fb0d4;font-size:11px;letter-spacing:.6px">IP-АДРЕС</th>'
+        '<th align="left" style="padding:11px 12px;color:#8fb0d4;font-size:11px;letter-spacing:.6px">МОДЕЛЬ</th>'
+        '<th align="left" style="padding:11px 12px;color:#8fb0d4;font-size:11px;letter-spacing:.6px">УСТАНОВЛЕНА</th>'
+        '<th align="left" style="padding:11px 12px;color:#8fb0d4;font-size:11px;letter-spacing:.6px">ДОСТУПНА</th>'
+        '<th align="left" style="padding:11px 12px;color:#8fb0d4;font-size:11px;letter-spacing:.6px">СТАТУС</th>'
+        '</tr></thead><tbody>'+''.join(rows)+'</tbody></table>'
+        '<div style="padding-top:18px;color:#71869e;font-size:12px">Автоматическое уведомление Firmware Monitor</div>'
+        '</td></tr></table></td></tr></table></body></html>'
+    )
+
 async def scheduled_checks():
     with SessionLocal() as db:
         started_at=now()
         devices=db.scalars(select(Device).where(Device.auto_check.is_(True),Device.installed_version_source=="snmp").order_by(Device.id)).all()
         for device in devices:
             await poll_installed_version(db,device)
-        model_ids=set(db.scalars(select(Device.catalog_model_id).where(Device.auto_check.is_(True),Device.installed_version_source=="snmp",Device.catalog_model_id.is_not(None))).all())
+        # Installed versions can only be polled automatically for SNMP devices,
+        # but vendor firmware sources must still be refreshed for manually
+        # maintained equipment. Otherwise a schedule containing only manual
+        # devices completes without doing any work or sending its summary.
+        model_ids=set(db.scalars(select(Device.catalog_model_id).where(Device.catalog_model_id.is_not(None))).all())
         for model_id in model_ids:
             model=db.get(EquipmentModel,model_id)
             if model: await check_model_source(db,model)
         queue_firmware_reminders(db,created_before=started_at)
         if model_ids:
-            models=[db.get(EquipmentModel,model_id) for model_id in sorted(model_ids)]
-            lines="\n".join(
-                f"• {model.vendor.name} {model.name} — {model.latest_check_status or 'статус не указан'}"
-                for model in models if model
-            )
-            mailer.queue_notification(
-                "auto_check_result",
-                "Firmware Monitor — автоматическая проверка завершена",
-                f"Автоматическая проверка прошивок завершена.\n\nПроверено моделей: {len(model_ids)}\n\nРезультаты:\n{lines}\n\nВремя завершения: {now().strftime('%d.%m.%Y %H:%M')}",
-            )
+            checked_models={model_id:db.get(EquipmentModel,model_id) for model_id in sorted(model_ids)}
+            checked_devices=db.scalars(select(Device).where(Device.catalog_model_id.in_(model_ids)).order_by(Device.name,Device.id)).all()
+            releases={model_id:latest_release(db,model_id) for model_id in model_ids}
+            outdated_devices=[device for device in checked_devices if device.status=="Есть обновление"]
+            lines=[]
+            for device in outdated_devices:
+                model=checked_models.get(device.catalog_model_id)
+                release=releases.get(device.catalog_model_id)
+                model_name=f"{model.vendor.name} {model.name}" if model else f"{device.vendor} {device.model}"
+                lines.append(
+                    f"{device.name} | {device.ip_address} | {model_name} | "
+                    f"установлена: {device.installed_version or 'не указана'} | "
+                    f"доступна: {release.version if release else 'не найдена'} | "
+                    f"статус: {device.status or 'не указан'}"
+                )
+            if outdated_devices:
+                finished_at=now()
+                html_body=automatic_check_report_html(outdated_devices,checked_models,releases,finished_at)
+                mailer.queue_notification(
+                    "auto_check_result",
+                    f"Firmware Monitor — требуется обновить оборудование: {len(outdated_devices)}",
+                    "Обнаружено оборудование без актуальной прошивки.\n"
+                    f"Время проверки: {finished_at.strftime('%d.%m.%Y %H:%M')}\n"
+                    f"Требуют обновления: {len(outdated_devices)}\n\n"
+                    "Оборудование:\n"
+                    + "\n".join(lines),
+                    html_body,
+                )
 
 def automation_config(db:Session):
     values={item.key:item.value for item in db.scalars(select(ApplicationSetting).where(ApplicationSetting.key.in_(("auto_check_enabled","auto_check_time")))).all()}
